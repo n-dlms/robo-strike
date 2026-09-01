@@ -63,6 +63,7 @@
 - 2026-09-01: Host primary Cloudflare Pages unlimited + mirror Vercel 100GB; manifest same-origin, `not_found_handling=404-page`, widget EXACT `https://jam.chain.wtf/widget.js`.
 - 2026-09-01: Audio generated originals 90% + 2 low-vol CC0 layers optional (toggle `USE_CC0_LAYERS`).
 - 2026-09-01: Stage 2 placeholders generated via ffmpeg/python to keep build green until manual asset pulls.
+- 2026-09-01: **SFX FIX per user request** — replaced pitched beeps with REAL free sounds: wins = a lot of falling coins (OGA coin_drop CC0 + Breviceps CC0 + coinsounds.zip CC0 lot 1.6s), jackpot = lotto win (OGA Win sound CC0 + FunWithSound CC0 fanfare 2.84s), loss = losing jingle (OGA losegamemusic CC0 1.4s), explosions = real world bombings (qubodup CC0 US gov + Pixabay 66K real explosion 0.61/1.1s), music loop = action rock (OGA SimpleBeat CC0 50s loudnorm). Old sfx still available as layers but primary now real.
 
 ## Eligibility Checklist (final audit)
 - [ ] contract+bridge+manifest exact

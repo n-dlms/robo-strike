@@ -4,11 +4,11 @@
   "sfx_fire": {"file":"sfx_fire.wav","ogg":"sfx_fire.ogg","volume":0.65},
   "sfx_whoosh": {"file":"sfx_whoosh.wav","ogg":"sfx_whoosh.ogg","volume":0.5},
   "sfx_clank": {"file":"sfx_clank.wav","ogg":"sfx_clank.ogg","volume":0.5},
-  "sfx_explosion_small": {"file":"sfx_explosion_small.wav","ogg":"sfx_explosion_small.ogg","volume":0.7},
-  "sfx_explosion_big": {"file":"sfx_explosion_big.wav","ogg":"sfx_explosion_big.ogg","volume":0.8},
-  "sfx_coin_tick": {"file":"sfx_coin_tick.wav","ogg":"sfx_coin_tick.ogg","volume":0.6},
-  "sfx_win": {"file":"sfx_win.wav","ogg":"sfx_win.ogg","volume":0.6},
-  "sfx_jackpot": {"file":"sfx_jackpot.wav","ogg":"sfx_jackpot.ogg","volume":0.75},
-  "sfx_miss": {"file":"sfx_miss.wav","ogg":"sfx_miss.ogg","volume":0.5},
+  "sfx_explosion_small": {"file":"sfx_explosion_small.wav","ogg":"sfx_explosion_small.ogg","volume":0.8},
+  "sfx_explosion_big": {"file":"sfx_explosion_big.wav","ogg":"sfx_explosion_big.ogg","volume":0.85},
+  "sfx_coin_tick": {"file":"sfx_coin_tick.wav","ogg":"sfx_coin_tick.ogg","volume":0.7},
+  "sfx_win": {"file":"sfx_win.wav","ogg":"sfx_win.ogg","volume":0.75},
+  "sfx_jackpot": {"file":"sfx_jackpot.wav","ogg":"sfx_jackpot.ogg","volume":0.8},
+  "sfx_miss": {"file":"sfx_miss.wav","ogg":"sfx_miss.ogg","volume":0.6},
   "music_loop": {"file":"music_loop.wav","ogg":"music_loop.ogg","volume":0.45,"loop":true}
 }
