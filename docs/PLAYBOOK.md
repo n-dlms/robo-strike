@@ -102,12 +102,19 @@
 AI ref 128×128 (Midjourney/SD prompt "pixel art 16x16 top-down tank --palette 6colors") → MANUAL trace in LibreSprite/Pixelorama @16×16/32×32 → palette lock indexed → 1px #1a1a1a outline → export PNG32 → CodeAndWeb Free Sprite Sheet Packer Phaser JSON Hash → pngquant --quality=65-80 --speed 3 → oxipng -o4 --strip safe → public/assets/atlas/robo-atlas.{png,json} → Phaser atlas NEAREST
 ```
 
-### 2e. Audio — Generated Originals (all $0, commercial PASS)
+### 2e. Audio — REAL FREE SOUNDS (all $0, commercial PASS — per 2026-09-01 user fix)
 
-- **Primary:** 9/10 SFX via ChipTone/jsfxr/Bfxr (CC0/UNLICENSE/MIT), loop via BeepBox (MIT + author owns song). No primary Kenney/Leohpaz to keep chiptune coherence; 2 low-volume CC0 layers optional (chip 04 -18dB under coin tick, chip cascade -20dB under jackpot).
-- **Recipes:** per `audio.md:10` — UI blip Square 880Hz 0.07s, lock-on Square sweep 300→1200Hz 0.35s, fire Square+Sawtooth 450Hz→down 0.22s, whoosh Noise doppler 0.25s, clank Square+Noise 0.18s, explosion Noise 0.58/0.92s, coin Sine 1.2kHz 0.07s×10, win/jackpot BeepBox stingers, miss Sine thud 0.35s. Mix master -1dBFS, duck music -6dB 300ms on explosion.
-- **Loop:** BeepBox 28 bars @133 BPM C-minor 50.5s (Square lead, Square harmony, Triangle bass, Noise drums) — square+triangle whitelist, export wav → Audacity crossfade 1200→600ms → `ffmpeg -qscale:a 4` ogg ~500KB.
-- **Pipeline:** Generator → wav 44.1k 16-bit mono → Audacity normalize/pad → ffmpeg ogg+mp3 → `public/assets/audio/` + manifest → `Phaser.Sound`.
+- **Primary (now real, not beeps):** wins = coins lot, jackpot = lotto, loss = losing jingle, explosions = real bombings, music = action rock, fire = real cannon — all CC0/Pixabay free.
+  - **Music loop:** OGA `SimpleBeat` CC0 4.6M LushoGames rock funk Action Battle 50s `SimpleBeat_0.mp3` → `loudnorm I=-16 TP=-2` 630K ogg (replaces BeepBox).
+  - **Fire:** OGA `cannon_fire_0.ogg` CC0 179K Thimras + Freesound `qubodup Howitzer Shot` CC0 5.7K mixed 0.38s 33K.
+  - **Explosion small:** Freesound `Jean_Filho Sci-Fi Grenade` CC0 11K 0.989s → 0.62s 54K `highpass 50 lowpass 9k`.
+  - **Explosion big:** Freesound `qubodup Explosive.flac` CC0 US gov 60K + sandyrb bomb backup 1.1s 95K.
+  - **Win (coins lot):** OGA `coin_drop.wav` CC0 245K + Freesound `Breviceps` CC0 222K + `coinsounds.zip` CC0 10 coins mixed 5 layers 1.6s 138K.
+  - **Jackpot (lotto):** OGA `Win sound.wav` CC0 767K + Freesound `FunWithSound Fanfare` CC0 36K mixed 2.84s 489K.
+  - **Loss:** OGA `losegamemusic.wav` CC0 1.2M trimmed 1.4s 242K.
+  - **UI blip/lockon/whoosh/clank** kept as ChipTone/jsfxr beeps (UI only, not wins).
+- **Pipeline:** CC0 wav/mp3 fetched via `curl -L` (verified 200 2026-09-01) → `ffmpeg` `loudnorm` `amix` `adelay` trim → `pcm_s16le 44.1k` wav → `libvorbis qscale 4-5` ogg → `public/assets/audio/` + `manifest.json` → `Phaser.Sound`.
+- **Legacy BeepBox/ChipTone recipes** remain in `audio.md:10` for fallback if CC0 offline, but primary now real.
 
 ### 2f. Optimizers
 
@@ -146,7 +153,7 @@ Short card ≤268 chars:
 ### 3d. Anti-AI-Slop Checklist (Visual=1/4 of judging)
 
 - [ ] Palette 6 colors only + 1px outline, `image-rendering:pixelated`, integer scale, same texel density single atlas, no gradient soup, 2 fonts max, juice present (shake 2-4px 120ms, flash, shell trail, 12-frame explosion, coin burst), one fiction (arena+3 tanks+CRT)
-- [ ] Audio: 6 SFX <400ms dry + 1 loop crossfade 20ms offline wav, not CDN, duck -6dB 300ms, sound on every tier, mute toggle persistent
+- [ ] Audio: **real CC0** 6 SFX <1.6s + 1 action loop 50s offline wav → ogg, not CDN, duck -6dB 300ms, sound on every tier, **music + SFX toggles** `docs/UI_AUDIO_TOGGLES.md:1` persists `localStorage roboStrike_audio_v1`, default ON, keys `M`/`S`, instant mute
 - [ ] UX: `computeMaxWager` clamp + potential-win range, keyboard Space/C/1-3 + touch pad (8px drag cancel), `revealOutcome` after animation, ticker status, widget visible + `X-Frame-Options ALLOWALL`, load ≤1.2MB, LCP <2.5s, standalone 900×1100 cartridge fits via `observeGameContentSize`
 
 ## 4. Math — Validated (source: `docs/research/math.md` + `MATH.md`)
@@ -204,7 +211,11 @@ Commands: `pngquant --quality=65-80 --speed 1`, `oxipng -o4 --strip safe/all`, `
 | TexturePacker paid, Retro Diffusion | No | BANNED never use | 2026-09-01 |
 | Any non-whitelist dep | Must be added here with reason before install | — | — |
 
-## 7. Open Questions → `docs/QUESTIONS_FOR_DISCORD.md`
+## 7. UI Audio Toggles (REQUIRED — persisted)
+
+- Spec at `docs/UI_AUDIO_TOGGLES.md:1` — two independent toggles **Music** (`music_loop` 50s action) and **SFX** (all `sfx_*` real coins/lotto/grenade/cannon), default ON, `♫`/`🔊` HUD buttons + keys `M`/`S`, `localStorage roboStrike_audio_v1 {music,sfx}`, instant pause/guard, implementation in `src/game/systems/AudioManager.ts` — must be verified in Phase 4 checklist.
+
+## 8. Open Questions → `docs/QUESTIONS_FOR_DISCORD.md`
 
 - Q1 sourceAccess invite handle, Q2 RTP 93-98% verification tolerance, Q3 load budget, Q4 widget iframe, Q5 VRF verification supported:false, Q8 Jetrel CC0 dispute (exclude), Q9 Leohpaz exclusive, Q10 pngquant output, Q11 BeepBox offline, Q12 Lazer crash label, Q13 pitch truncation, Q14 Overdrive sequencing, Q15 cartridge scale 900×1100, Q16 Sol max sentinel, Q17 T_OD literal, Q18-20 hosting caps. Re-read before submit, re-check gallery 24h before deadline via Convex POST `entries:listApproved`.
 
