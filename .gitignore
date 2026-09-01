@@ -1,0 +1,6 @@
+node_modules/
+dist/
+simulator/
+*.zip
+.DS_Store
+.env
