@@ -1,10 +1,10 @@
 {
   "sfx_ui_blip": {"file":"sfx_ui_blip.wav","ogg":"sfx_ui_blip.ogg","volume":0.45,"length":0.07,"source":"ChipTone CC0 blip 880Hz"},
   "sfx_lockon": {"file":"sfx_lockon.wav","ogg":"sfx_lockon.ogg","volume":0.55,"length":0.35,"source":"jsfxr CC0 sweep 300->1200Hz"},
-  "sfx_fire": {"file":"sfx_fire.wav","ogg":"sfx_fire.ogg","volume":0.65,"length":0.22,"source":"Bfxr CC0 square+saw 450Hz"},
+  "sfx_fire": {"file":"sfx_fire.wav","ogg":"sfx_fire.ogg","volume":0.85,"length":0.38,"source":"REAL TANK CANNON: OGA cannon_fire_0.ogg CC0 https://opengameart.org/content/cannon-fire 179.9K Thimras + Freesound qubodup Howitzer Shot CC0 https://cdn.freesound.org/previews/175/175430_71257-lq.mp3 5.7K mixed 0.38s 33K"},
   "sfx_whoosh": {"file":"sfx_whoosh.wav","ogg":"sfx_whoosh.ogg","volume":0.5,"length":0.25,"source":"jsfxr CC0 noise doppler"},
   "sfx_clank": {"file":"sfx_clank.wav","ogg":"sfx_clank.ogg","volume":0.5,"length":0.18,"source":"ChipTone CC0 metallic"},
-  "sfx_explosion_small": {"file":"sfx_explosion_small.wav","ogg":"sfx_explosion_small.ogg","volume":0.8,"length":0.61,"source":"Pixabay explosion-109420 CC0-like Content License (test_pixabay_explosion.mp3 66K 24kHz) real bombing 0.61s"},
+  "sfx_explosion_small": {"file":"sfx_explosion_small.wav","ogg":"sfx_explosion_small.ogg","volume":0.85,"length":0.62,"source":"REAL GRENADE: Freesound Jean_Filho Sci-Fi Grenade explosion CC0 https://freesound.org/people/Jean_Filho/sounds/807381/ https://cdn.freesound.org/previews/807/807381_14299523-lq.mp3 11K 0.989s trimmed 0.62s 54K"},
   "sfx_explosion_big": {"file":"sfx_explosion_big.wav","ogg":"sfx_explosion_big.ogg","volume":0.85,"length":1.10,"source":"Freesound qubodup Explosive.flac CC0 US gov public domain https://freesound.org/people/qubodup/sounds/189778/ (60K) + sandyrb USAT BOMB CC BY 4.0 backup, mixed 1.1s real artillery"},
   "sfx_coin_tick": {"file":"sfx_coin_tick.wav","ogg":"sfx_coin_tick.ogg","volume":0.7,"length":0.35,"source":"OGA coin_drop.wav CC0 https://opengameart.org/content/coin-drop 245K single drop 0.35s"},
   "sfx_win": {"file":"sfx_win.wav","ogg":"sfx_win.ogg","volume":0.75,"length":1.60,"source":"WIN lot: OGA coin_drop.wav CC0 + Breviceps CC0 https://cdn.freesound.org/previews/458/458399_9159316-lq.mp3 222K + coinsounds.zip CC0 (Enci23) mixed 5 layers1.6s a lot of falling coins"},
