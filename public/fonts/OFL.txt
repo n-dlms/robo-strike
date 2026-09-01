@@ -1,0 +1,4 @@
+SIL Open Font License 1.1 (see https://github.com/google/fonts/blob/main/ofl/pressstart2p/OFL.txt)
+Press Start 2P Copyright 2012 Cody "CodeMan38" Boisclair (cody@zone38.net) — Reserved Name "Press Start 2P"
+VT323 Copyright Peter Hull
+Permission granted free to use, study, copy, merge, embed, modify, redistribute, sell bundled with software per OFL 1.1.
