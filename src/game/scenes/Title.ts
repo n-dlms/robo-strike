@@ -151,23 +151,25 @@ export class Title extends Phaser.Scene {
       .text(modalX + 78, modalY - 38, '♫', {
         fontFamily: '"VT323"',
         fontSize: '13px',
-        color: audioState.music ? PALETTE_HEX.green : '#555555',
+        color: PALETTE_HEX.green,
         backgroundColor: PALETTE_HEX.outline,
         padding: { x: 4, y: 1 },
       })
       .setOrigin(0.5)
       .setDepth(11)
+      .setAlpha(audioState.music ? 1 : 0.35)
       .setInteractive({ useHandCursor: true })
     const sfxToggle = this.add
       .text(modalX + 96, modalY - 38, '🔊', {
         fontFamily: '"VT323"',
         fontSize: '13px',
-        color: audioState.sfx ? PALETTE_HEX.green : '#555555',
+        color: PALETTE_HEX.green,
         backgroundColor: PALETTE_HEX.outline,
         padding: { x: 4, y: 1 },
       })
       .setOrigin(0.5)
       .setDepth(11)
+      .setAlpha(audioState.sfx ? 1 : 0.35)
       .setInteractive({ useHandCursor: true })
 
     const saveAudio = (music: boolean, sfx: boolean) => {
@@ -177,14 +179,14 @@ export class Title extends Phaser.Scene {
       const cur = JSON.parse(localStorage.getItem('roboStrike_audio_v1') || '{"music":true,"sfx":true}')
       cur.music = !cur.music
       saveAudio(cur.music, cur.sfx)
-      musicToggle.setColor(cur.music ? PALETTE_HEX.green : '#555555')
+      musicToggle.setAlpha(cur.music ? 1 : 0.35)
       // block propagation so not to trigger start
     })
     sfxToggle.on('pointerdown', () => {
       const cur = JSON.parse(localStorage.getItem('roboStrike_audio_v1') || '{"music":true,"sfx":true}')
       cur.sfx = !cur.sfx
       saveAudio(cur.music, cur.sfx)
-      sfxToggle.setColor(cur.sfx ? PALETTE_HEX.green : '#555555')
+      sfxToggle.setAlpha(cur.sfx ? 1 : 0.35)
     })
     // Stop propagation for toggles so click on toggle doesn't start game
     musicToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
@@ -213,10 +215,11 @@ export class Title extends Phaser.Scene {
       .text(modalX, modalY + 24, 'OR TAP', {
         fontFamily: '"VT323"',
         fontSize: '9px',
-        color: '#aaaaaa',
+        color: PALETTE_HEX.white,
       })
       .setOrigin(0.5)
       .setDepth(11)
+      .setAlpha(0.65)
 
     // Verify widget embed is official — widget is in index.html <script async src="https://jam.chain.wtf/widget.js">
     // No hand-made badge here; if needed, we would delete it. So nothing to add.
