@@ -84,10 +84,10 @@ export class TitleScene extends Phaser.Scene {
       { x: 160, y: 66, base: 'enemy2_base', turret: 'enemy2_turret', name: 'BRUISER', mult: '×15' },
       { x: 256, y: 66, base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
     ]
-    enemies.forEach((e, idx) => {
-      const t = (idx * 0.33 + 0.17) % 1
-      const dir = idx % 2 === 0 ? 1 : -1
-      const speed = 0.00018 + idx * 0.00007
+    enemies.forEach((e) => {
+      const t = Math.random()
+      const dir = Math.random() < 0.5 ? 1 : -1
+      const speed = Phaser.Math.FloatBetween(0.00015, 0.00038)
       const pt = this.borderPath.getPoint(t)
       const base = this.add.image(pt.x, pt.y, e.base)
       base.setScale(0.85)
@@ -262,8 +262,9 @@ export class TitleScene extends Phaser.Scene {
   }
 
   update(_: number, delta: number) {
-    // Border patrol — random order any direction
     this.enemyData.forEach((e) => {
+      if (Math.random() < 0.002) e.dir *= -1
+      if (Math.random() < 0.0015) e.speed = Phaser.Math.FloatBetween(0.00015, 0.00038)
       e.t = (e.t + e.dir * e.speed * delta) % 1
       if (e.t < 0) e.t += 1
       const pt = this.borderPath.getPoint(e.t)
@@ -272,7 +273,21 @@ export class TitleScene extends Phaser.Scene {
       e.turret.x = pt.x
       e.turret.y = pt.y
     })
-    // AI tanks aim at player (visual only, VRF still decides)
+    const minDist = 30
+    for (let i = 0; i < this.enemyData.length; i++) {
+      for (let j = i + 1; j < this.enemyData.length; j++) {
+        const a = this.enemyData[i]
+        const b = this.enemyData[j]
+        const d = Phaser.Math.Distance.Between(a.base.x, a.base.y, b.base.x, b.base.y)
+        if (d < minDist && d > 0.1) {
+          const overlap = (minDist - d) / 2
+          const tDelta = (overlap / 800) * 1.2
+          a.t = (a.t + tDelta) % 1
+          b.t = (b.t - tDelta + 1) % 1
+          if (a.dir === b.dir && Math.random() < 0.5) b.dir *= -1
+        }
+      }
+    }
     const px = this.playerBase.x
     const py = this.playerBase.y
     this.enemyTurrets.forEach((turret) => {
@@ -282,7 +297,7 @@ export class TitleScene extends Phaser.Scene {
     const idx = this.attractIndex % this.enemyTurrets.length
     const target = this.enemyTurrets[idx]
     const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
-    this.playerTurret.rotation = pAngle + Math.PI / 2
+    this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, pAngle + Math.PI / 2, 0.22)
   }
 
   private playAttract() {

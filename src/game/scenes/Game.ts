@@ -67,10 +67,10 @@ export class Game extends Phaser.Scene {
       { base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
     ]
     configs.forEach((c, idx) => {
-      // Random order: deterministic shuffle based on idx
-      const t = (idx * 0.33 + 0.17) % 1 // 0.17, 0.5, 0.83
-      const dir = idx % 2 === 0 ? 1 : -1 // any direction
-      const speed = 0.00018 + (idx * 0.00007) // 0.00018, 0.00025, 0.00032
+      // Random for each: random order any direction, random speed
+      const t = Math.random() // 0..1 random start
+      const dir = Math.random() < 0.5 ? 1 : -1
+      const speed = Phaser.Math.FloatBetween(0.00015, 0.00038) // random speed per bot
       const pt = this.borderPath.getPoint(t)
       this.add.image(pt.x, pt.y + 10, 'bunker_intact').setScale(0.9).setOrigin(0.5).setDepth(-1).setAlpha(0.3)
       const base = this.add.image(pt.x, pt.y, c.base)
@@ -207,8 +207,11 @@ export class Game extends Phaser.Scene {
       this.playerTurret.y = this.playerBase.y
     }
 
-    // Enemy border patrol — random order any direction (deterministic t + dir*speed)
+    // Enemy border patrol — random for each, any direction
     this.enemyData.forEach((e) => {
+      // Random jitter: 0.2% chance per frame to flip direction or change speed
+      if (Math.random() < 0.002) e.dir *= -1
+      if (Math.random() < 0.0015) e.speed = Phaser.Math.FloatBetween(0.00015, 0.00038)
       e.t = (e.t + e.dir * e.speed * delta) % 1
       if (e.t < 0) e.t += 1
       const pt = this.borderPath.getPoint(e.t)
@@ -216,12 +219,29 @@ export class Game extends Phaser.Scene {
       e.base.y = pt.y
       e.turret.x = pt.x
       e.turret.y = pt.y
-      // AI turret aims at player without hesitation
       const angle = Phaser.Math.Angle.Between(e.turret.x, e.turret.y, this.playerBase.x, this.playerBase.y)
-      // lerp for snappy but not instant
       const targetRot = angle + Math.PI / 2
-      e.turret.rotation = Phaser.Math.Angle.RotateTo(e.turret.rotation, targetRot, 0.18)
+      e.turret.rotation = Phaser.Math.Angle.RotateTo(e.turret.rotation, targetRot, 0.22)
     })
+    // Physics: bots should not collide — push apart if too close
+    const minDist = 30
+    for (let i = 0; i < this.enemyData.length; i++) {
+      for (let j = i + 1; j < this.enemyData.length; j++) {
+        const a = this.enemyData[i]
+        const b = this.enemyData[j]
+        const d = Phaser.Math.Distance.Between(a.base.x, a.base.y, b.base.x, b.base.y)
+        if (d < minDist && d > 0.1) {
+          const overlap = (minDist - d) / 2
+          const angle = Phaser.Math.Angle.Between(b.base.x, b.base.y, a.base.x, a.base.y)
+          // Nudge along path t: convert overlap to t delta approx (perimeter ~ 800px, t 0..1 = 800px)
+          const tDelta = (overlap / 800) * 1.2
+          a.t = (a.t + tDelta) % 1
+          b.t = (b.t - tDelta + 1) % 1
+          // Also flip one if head-on
+          if (a.dir === b.dir && Math.random() < 0.5) b.dir *= -1
+        }
+      }
+    }
     // Player turret aims at closest enemy
     if (this.enemyTurrets[1]) {
       const tx = this.enemyTurrets[1].x
