@@ -181,6 +181,15 @@ export class TitleScene extends Phaser.Scene {
     })
     musicToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
     sfxToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
+    // Keys M/S also work on title
+    this.input.keyboard?.on('keydown-M', () => {
+      const on = this.audio.toggleMusic()
+      musicToggle.setAlpha(on ? 1 : 0.35)
+    })
+    this.input.keyboard?.on('keydown-S', () => {
+      const on = this.audio.toggleSfx()
+      sfxToggle.setAlpha(on ? 1 : 0.35)
+    })
 
     this.startText = this.add
       .text(modalX, modalY + 12, 'PRESS FIRE TO START', {

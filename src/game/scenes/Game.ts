@@ -71,6 +71,52 @@ export class Game extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
 
+    // Audio toggles — also during gameplay (not only start screen)
+    const gState = this.audio.getState()
+    const gMusic = this.add
+      .text(width - 36, 14, '♫', {
+        fontFamily: '"VT323"',
+        fontSize: '12px',
+        color: PALETTE_HEX.green,
+        backgroundColor: PALETTE_HEX.outline,
+        padding: { x: 4, y: 1 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(gState.music ? 1 : 0.35)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(20)
+    const gSfx = this.add
+      .text(width - 16, 14, '🔊', {
+        fontFamily: '"VT323"',
+        fontSize: '12px',
+        color: PALETTE_HEX.green,
+        backgroundColor: PALETTE_HEX.outline,
+        padding: { x: 4, y: 1 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(gState.sfx ? 1 : 0.35)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(20)
+    gMusic.on('pointerdown', () => {
+      const on = this.audio.toggleMusic()
+      gMusic.setAlpha(on ? 1 : 0.35)
+      this.audio.playSfx('sfx_ui_blip')
+    })
+    gSfx.on('pointerdown', () => {
+      const on = this.audio.toggleSfx()
+      gSfx.setAlpha(on ? 1 : 0.35)
+      this.audio.playSfx('sfx_ui_blip')
+    })
+    // Keys M/S also toggle during gameplay
+    this.input.keyboard?.on('keydown-M', () => {
+      const on = this.audio.toggleMusic()
+      gMusic.setAlpha(on ? 1 : 0.35)
+    })
+    this.input.keyboard?.on('keydown-S', () => {
+      const on = this.audio.toggleSfx()
+      gSfx.setAlpha(on ? 1 : 0.35)
+    })
+
     const fireBtn = this.add
       .text(width / 2, height - 20, 'FIRE', {
         fontFamily: '"Press Start 2P"',
