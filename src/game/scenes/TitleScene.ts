@@ -1,17 +1,18 @@
 import Phaser from 'phaser'
 import { PALETTE, PALETTE_HEX } from '../../config/palette'
 import { AudioManager } from '../systems/AudioManager'
+import { Scout } from '../entities/Scout'
+import { Bruiser } from '../entities/Bruiser'
+import { Warlord } from '../entities/Warlord'
+
+type Bot = Scout | Bruiser | Warlord
 
 export class TitleScene extends Phaser.Scene {
   private attractIndex = 0
   private attractTimer?: Phaser.Time.TimerEvent
   private playerBase!: Phaser.GameObjects.Image
   private playerTurret!: Phaser.GameObjects.Image
-  private enemyBases: Phaser.GameObjects.Image[] = []
-  private enemyTurrets: Phaser.GameObjects.Image[] = []
-  private enemyPositions: { x: number; y: number }[] = []
-  private enemyData: { base: Phaser.GameObjects.Image; turret: Phaser.GameObjects.Image; dir: number; speed: number; t: number }[] = []
-  private borderPath!: Phaser.Curves.Path
+  private bots: Bot[] = []
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
   private audio!: AudioManager
@@ -50,14 +51,6 @@ export class TitleScene extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
-    // Border path for patrol — inset 20px
-    this.borderPath = new Phaser.Curves.Path(20, 20)
-    this.borderPath.lineTo(width - 20, 20)
-    this.borderPath.lineTo(width - 20, height - 40)
-    this.borderPath.lineTo(20, height - 40)
-    this.borderPath.lineTo(20, 20)
-
-    // Player — base + turret (turret will aim at current target)
     this.playerBase = this.add.image(160, height - 32, 'player_base')
     this.playerBase.setScale(0.9)
     this.playerTurret = this.add.image(160, height - 32, 'player_turret')
@@ -79,38 +72,29 @@ export class TitleScene extends Phaser.Scene {
       bunker.setOrigin(0.5)
     }
 
-    const enemies = [
-      { x: 64, y: 66, base: 'enemy1_base', turret: 'enemy1_turret', name: 'SCOUT', mult: '×30' },
-      { x: 160, y: 66, base: 'enemy2_base', turret: 'enemy2_turret', name: 'BRUISER', mult: '×15' },
-      { x: 256, y: 66, base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
+    const botClasses: any[] = [Scout, Bruiser, Warlord]
+    const labels = [
+      { name: 'SCOUT', mult: '×30' },
+      { name: 'BRUISER', mult: '×15' },
+      { name: 'WARLORD', mult: '×11' },
     ]
-    enemies.forEach((e) => {
-      const t = Math.random()
-      const dir = Math.random() < 0.5 ? 1 : -1
-      const speed = Phaser.Math.FloatBetween(0.00015, 0.00038)
-      const pt = this.borderPath.getPoint(t)
-      const base = this.add.image(pt.x, pt.y, e.base)
-      base.setScale(0.85)
-      const turret = this.add.image(pt.x, pt.y, e.turret)
-      turret.setScale(0.85)
-      turret.setOrigin(0.5, 0.7)
-      this.enemyBases.push(base)
-      this.enemyTurrets.push(turret)
-      this.enemyData.push({ base, turret, dir, speed, t })
-
+    botClasses.forEach((Cls, idx) => {
+      const x = 64 + idx * 96 + Phaser.Math.Between(-8, 8)
+      const y = 66 + Phaser.Math.Between(-6, 6)
+      const bot: any = new Cls(this, x, y)
+      this.bots.push(bot)
       this.add
-        .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
+        .text(Math.round(x), Math.round(y + 18), labels[idx].mult, {
           fontFamily: '"Press Start 2P"',
           fontSize: '8px',
-          color: e.mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
+          color: labels[idx].mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
           stroke: PALETTE_HEX.outline,
           strokeThickness: 1,
         })
         .setOrigin(0.5)
         .setResolution(2)
-
       this.add
-        .text(Math.round(e.x), Math.round(e.y - 14), e.name, {
+        .text(Math.round(x), Math.round(y - 14), labels[idx].name, {
           fontFamily: '"VT323"',
           fontSize: '10px',
           color: PALETTE_HEX.white,
@@ -261,51 +245,48 @@ export class TitleScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
-  update(_: number, delta: number) {
-    this.enemyData.forEach((e) => {
-      if (Math.random() < 0.002) e.dir *= -1
-      if (Math.random() < 0.0015) e.speed = Phaser.Math.FloatBetween(0.00015, 0.00038)
-      e.t = (e.t + e.dir * e.speed * delta) % 1
-      if (e.t < 0) e.t += 1
-      const pt = this.borderPath.getPoint(e.t)
-      e.base.x = pt.x
-      e.base.y = pt.y
-      e.turret.x = pt.x
-      e.turret.y = pt.y
-    })
-    const minDist = 30
-    for (let i = 0; i < this.enemyData.length; i++) {
-      for (let j = i + 1; j < this.enemyData.length; j++) {
-        const a = this.enemyData[i]
-        const b = this.enemyData[j]
+  update() {
+    // Each bot own code, random free space, no collide, barrel aims at you
+    this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
+    const minDist = 28
+    for (let i = 0; i < this.bots.length; i++) {
+      for (let j = i + 1; j < this.bots.length; j++) {
+        const a: any = this.bots[i]
+        const b: any = this.bots[j]
         const d = Phaser.Math.Distance.Between(a.base.x, a.base.y, b.base.x, b.base.y)
         if (d < minDist && d > 0.1) {
-          const overlap = (minDist - d) / 2
-          const tDelta = (overlap / 800) * 1.2
-          a.t = (a.t + tDelta) % 1
-          b.t = (b.t - tDelta + 1) % 1
-          if (a.dir === b.dir && Math.random() < 0.5) b.dir *= -1
+          const angle = Phaser.Math.Angle.Between(b.base.x, b.base.y, a.base.x, a.base.y)
+          const push = (minDist - d) / 2
+          a.base.x += Math.cos(angle) * push
+          a.base.y += Math.sin(angle) * push
+          a.turret.x = a.base.x; a.turret.y = a.base.y
+          b.base.x -= Math.cos(angle) * push
+          b.base.y -= Math.sin(angle) * push
+          b.turret.x = b.base.x; b.turret.y = b.base.y
         }
       }
     }
-    const px = this.playerBase.x
-    const py = this.playerBase.y
-    this.enemyTurrets.forEach((turret) => {
-      const angle = Phaser.Math.Angle.Between(turret.x, turret.y, px, py)
-      turret.rotation = angle + Math.PI / 2
+    // Player turret aims at closest bot, you can move yours (mouse)
+    const idx = this.attractIndex % this.bots.length
+    const target: any = (this.bots[idx] as any)?.turret
+    if (target) {
+      const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
+      this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, pAngle + Math.PI / 2, 0.22)
+    }
+    // Player barrel movable via mouse
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const ang = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, p.x, p.y)
+      this.playerTurret.rotation = ang + Math.PI / 2
     })
-    const idx = this.attractIndex % this.enemyTurrets.length
-    const target = this.enemyTurrets[idx]
-    const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
-    this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, pAngle + Math.PI / 2, 0.22)
   }
 
   private playAttract() {
     if ((this as any)._starting) return
-    const idx = this.attractIndex % this.enemyTurrets.length
+    const idx = this.attractIndex % this.bots.length
     this.attractIndex++
-    const turret = this.enemyTurrets[idx]
-    const target = { x: turret.x, y: turret.y }
+    const bot: any = this.bots[idx]
+    if (!bot) return
+    const target = { x: bot.turret.x, y: bot.turret.y }
     const start = { x: this.playerBase.x, y: this.playerBase.y - 4 }
 
     this.audio.playSfx('sfx_fire', { volume: 0.7 })
@@ -357,13 +338,11 @@ export class TitleScene extends Phaser.Scene {
       onComplete: () => {
         shell.destroy()
         trailTimer.remove()
-        const enemyBase = this.enemyBases[idx]
-        const enemyTurret = this.enemyTurrets[idx]
-        enemyBase.setTint(0xffffff)
-        enemyTurret.setTint(0xffffff)
+        bot.base.setTint(0xffffff)
+        bot.turret.setTint(0xffffff)
         this.time.delayedCall(80, () => {
-          enemyBase.clearTint()
-          enemyTurret.clearTint()
+          bot.base.clearTint()
+          bot.turret.clearTint()
         })
         this.cameras.main.shake(120, 0.006)
         this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
