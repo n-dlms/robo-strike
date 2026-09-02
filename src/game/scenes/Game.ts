@@ -14,10 +14,10 @@ export class Game extends Phaser.Scene {
     bg.setDisplaySize(width, height)
     this.add.image(width / 2, height / 2, 'bg_starfield').setAlpha(0.25).setDisplaySize(width, height)
 
-    this.add.rectangle(width / 2, 140, width, 2, 0x1a1a1a).setAlpha(0.5)
+    this.add.rectangle(width / 2, height - 30, width, 2, 0x1a1a1a).setAlpha(0.5)
 
     // Player tank — REAL IMAGE
-    const player = this.add.image(60, 110, 'player_idle_1')
+    const player = this.add.image(60, height - 70, 'player_idle_1')
     player.setScale(0.85)
     player.setOrigin(0.5)
 
@@ -57,7 +57,7 @@ export class Game extends Phaser.Scene {
       .setOrigin(0, 0.5)
 
     const fireBtn = this.add
-      .text(width / 2, 160, 'FIRE', {
+      .text(width / 2, height - 20, 'FIRE', {
         fontFamily: '"Press Start 2P"',
         fontSize: '10px',
         color: PALETTE_HEX.white,
@@ -73,7 +73,7 @@ export class Game extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ENTER', () => this.handleFire(player))
 
     this.add
-      .text(width / 2, 175, '320×180 CRT • REAL ART', {
+      .text(width / 2, height - 5, '320×240 4:3 CRT • REAL ART', {
         fontFamily: '"VT323"',
         fontSize: '8px',
         color: '#666',

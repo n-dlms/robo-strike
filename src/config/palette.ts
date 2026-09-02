@@ -20,7 +20,7 @@ export const PALETTE_HEX = {
 } as const
 
 export const INTERNAL_WIDTH = 320
-export const INTERNAL_HEIGHT = 180
+export const INTERNAL_HEIGHT = 240
 
 export const FONT_TITLE = '"Press Start 2P"'
 export const FONT_BODY = '"VT323"'

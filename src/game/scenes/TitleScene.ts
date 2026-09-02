@@ -44,10 +44,10 @@ export class TitleScene extends Phaser.Scene {
         })
       }
     }
-    this.add.rectangle(width / 2, 150, width, 2, PALETTE.outline).setAlpha(0.6)
+    this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
     // ---- Arena: Player tank bottom-center — REAL IMAGE ----
-    this.playerTank = this.add.image(160, 148, 'player_idle_1')
+    this.playerTank = this.add.image(160, height - 32, 'player_idle_1')
     this.playerTank.setOrigin(0.5)
     // Scale to fit 26x14 approx (original 32x32, scale 0.8)
     this.playerTank.setScale(0.85)
