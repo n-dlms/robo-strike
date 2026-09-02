@@ -10,5 +10,10 @@
   "sfx_win": {"file":"sfx_win.wav","ogg":"sfx_win.ogg","volume":0.75},
   "sfx_jackpot": {"file":"sfx_jackpot.wav","ogg":"sfx_jackpot.ogg","volume":0.8},
   "sfx_miss": {"file":"sfx_miss.wav","ogg":"sfx_miss.ogg","volume":0.6},
+  "sfx_fire_scout": {"file":"sfx_fire_scout.wav","ogg":"sfx_fire_scout.ogg","volume":0.55},
+  "sfx_fire_bruiser": {"file":"sfx_fire_bruiser.wav","ogg":"sfx_fire_bruiser.ogg","volume":0.55},
+  "sfx_fire_warlord": {"file":"sfx_fire_warlord.wav","ogg":"sfx_fire_warlord.ogg","volume":0.6},
+  "sfx_gameover": {"file":"sfx_gameover.wav","ogg":"sfx_gameover.ogg","volume":0.75},
+  "sfx_gameover_new": {"file":"sfx_gameover_new.wav","ogg":"sfx_gameover_new.ogg","volume":0.75},
   "music_loop": {"file":"music_loop.wav","ogg":"music_loop.ogg","volume":0.45,"loop":true}
 }

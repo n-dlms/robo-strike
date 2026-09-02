@@ -731,8 +731,11 @@ export class Game extends Phaser.Scene {
     // Shake per spec — miss shake ±2px 150ms
     this.cameras.main.shake(150, 0.009)
 
-    // Play losing jingle sfx_miss (1.4s OGA losegamemusic)
-    this.audio.playSfx('sfx_miss', { volume: 0.75 })
+    // Play new Game Over jingle sfx_gameover (CC0 GAMEOVER.wav trimmed + loudnorm) — replaces sfx_miss losegamemusic
+    // Fallback chain: sfx_gameover -> sfx_gameover_new -> sfx_miss
+    if (this.cache.audio.exists('sfx_gameover')) this.audio.playSfx('sfx_gameover', { volume: 0.75 })
+    else if (this.cache.audio.exists('sfx_gameover_new')) this.audio.playSfx('sfx_gameover_new', { volume: 0.75 })
+    else this.audio.playSfx('sfx_miss', { volume: 0.75 })
 
     const container = this.add.container(width / 2, height / 2)
     container.setDepth(100)

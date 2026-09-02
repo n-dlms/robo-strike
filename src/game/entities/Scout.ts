@@ -174,8 +174,8 @@ export class Scout {
   private fire(scene: Phaser.Scene, playerX: number, playerY: number) {
     const tip = this.getBarrelTip()
     const audio: any = (scene as any).audio
-    if (audio) audio.playSfx('sfx_fire', { volume: 0.55 })
-    else if (scene.sound && (scene as any).cache?.audio?.exists?.('sfx_fire')) scene.sound.play('sfx_fire', { volume: 0.55 } as any)
+    if (audio) audio.playSfx('sfx_fire_scout', { volume: 0.55 })
+    else if (scene.sound && (scene as any).cache?.audio?.exists?.('sfx_fire_scout')) scene.sound.play('sfx_fire_scout', { volume: 0.55 } as any)
 
     const flash = scene.add.image(tip.x, tip.y, 'muzzle_1')
     flash.setScale(0.5)

@@ -155,7 +155,7 @@ export class Warlord {
   private fire(scene: Phaser.Scene, playerX: number, playerY: number) {
     const tip = this.getBarrelTip()
     const audio: any = (scene as any).audio
-    if (audio) audio.playSfx('sfx_fire', { volume: 0.6 })
+    if (audio) audio.playSfx('sfx_fire_warlord', { volume: 0.6 })
     const flash = scene.add.image(tip.x, tip.y, 'muzzle_1')
     flash.setScale(0.6)
     flash.setDepth(14)
