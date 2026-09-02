@@ -18,9 +18,10 @@ export class Scout {
   private healthBarFill?: Phaser.GameObjects.Rectangle
   private healthBarBorder?: Phaser.GameObjects.Rectangle
 
-  // Firing — fastest
-  readonly fireInterval = 800
+  // Firing — slowed for playability (was 800)
+  readonly fireInterval = 1800
   private nextFireTime = 0
+  private isWindingUp = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, betAmount = 10, maxBet = 100) {
     const pt = { x, y }
@@ -40,7 +41,7 @@ export class Scout {
     this.hits = this.maxHits
     this.alive = true
     this.createHealthBar(scene)
-    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(0, 300)
+    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(350, 700)
   }
 
   private pickNewTarget(scene: Phaser.Scene) {
@@ -111,11 +112,64 @@ export class Scout {
 
   private tryFire(scene: Phaser.Scene, playerX: number, playerY: number) {
     if (!this.alive) return
+    if (this.isWindingUp) return
+    const gameAny: any = scene as any
+    if (gameAny.isGameOver) return
     const now = scene.time.now
     if (now < this.nextFireTime) return
-    const jitter = Phaser.Math.Between(-150, 150)
+    // Global cooldown / round-robin guard — only one bot may wind up at a time
+    if (typeof gameAny.canEnemyFire === 'function' && !gameAny.canEnemyFire(now)) return
+    // Aim alignment guard — must be roughly facing player
+    const desired = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY) + Math.PI / 2
+    const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
+    if (Math.abs(diff) > 0.45) return
+    // Range guard — don't fire if player far outside arena (documents intent, arena max ~360)
+    const dist = Phaser.Math.Distance.Between(this.turret.x, this.turret.y, playerX, playerY)
+    if (dist > 360) return
+    if (dist < 18) return
+
+    // Claim global slot immediately so other bots stagger
+    if (typeof gameAny.notifyEnemyFired === 'function') gameAny.notifyEnemyFired(now)
+    // Schedule next attempt (jitter widened for less sync)
+    const jitter = Phaser.Math.Between(-220, 220)
     this.nextFireTime = now + this.fireInterval + jitter
-    this.fire(scene, playerX, playerY)
+    this.isWindingUp = true
+
+    // Telegraph — 280ms windup: flash + tiny scale pulse + charge dot
+    this.base.setTint(0xffffff)
+    this.turret.setTint(0xffffff)
+    scene.tweens.add({ targets: [this.base, this.turret], scale: 0.92, duration: 110, yoyo: true, ease: 'Quad.easeOut' })
+    const marker = scene.add.rectangle(this.base.x, this.base.y - 18, 4, 4, 0xffff66)
+    marker.setDepth(13)
+    marker.setAlpha(0.9)
+    const syncMarker = scene.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        if (!marker.active) { syncMarker.remove(); return }
+        if (!this.base.active) { marker.destroy(); syncMarker.remove(); return }
+        marker.setPosition(this.base.x, this.base.y - 18)
+      },
+    })
+    scene.time.delayedCall(280, () => {
+      syncMarker.remove()
+      marker.destroy()
+      this.isWindingUp = false
+      if (!this.alive || !this.base.active) {
+        if (this.base.active) { this.base.clearTint(); this.base.setTint(this.tintColor) }
+        if (this.turret.active) { this.turret.clearTint(); this.turret.setTint(this.tintColor) }
+        return
+      }
+      if (gameAny.isGameOver) {
+        this.base.clearTint(); this.turret.clearTint()
+        if (this.alive) { this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor) }
+        return
+      }
+      this.base.clearTint(); this.turret.clearTint()
+      this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor)
+      // Re-check alive after windup before firing
+      this.fire(scene, playerX, playerY)
+    })
   }
 
   private fire(scene: Phaser.Scene, playerX: number, playerY: number) {
@@ -134,6 +188,10 @@ export class Scout {
     const shell = scene.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.55)
     shell.setDepth(12)
+
+    // Capture predicted impact point (player pos at fire moment)
+    const destX = playerX
+    const destY = playerY
 
     // trail — cosmetic, not VRF
     const trailEv = scene.time.addEvent({
@@ -160,21 +218,48 @@ export class Scout {
 
     scene.tweens.add({
       targets: shell,
-      x: playerX,
-      y: playerY,
+      x: destX,
+      y: destY,
       duration: 360,
       ease: 'Linear',
       onComplete: () => {
         shell.destroy()
         trailEv.remove()
+        const gameAny: any = scene as any
+        if (gameAny.isGameOver) return
+        // Invulnerability check — if player i-framed, show shield puff, no damage
+        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+          const puff = scene.add.image(destX, destY, 'explosion_small_1')
+          puff.setScale(0.55)
+          puff.setAlpha(0.45)
+          puff.setTint(0x8ecfff)
+          puff.setDepth(13)
+          scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
+          return
+        }
+        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss
+        const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
+        if (pb && pb.active) {
+          const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
+          if (actualDist > 38) {
+            const miss = scene.add.image(destX, destY, 'explosion_small_1')
+            miss.setScale(0.5)
+            miss.setAlpha(0.35)
+            miss.setTint(0xaaaaaa)
+            miss.setDepth(13)
+            scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+            if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            return
+          }
+        }
+        // Hit — full effects
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })
         scene.cameras.main.shake(70, 0.004)
-        const exp = scene.add.image(playerX, playerY, 'explosion_small_1')
+        const exp = scene.add.image(destX, destY, 'explosion_small_1')
         exp.setScale(0.9)
         exp.setDepth(13)
         scene.tweens.add({ targets: exp, scale: 1.3, alpha: 0, duration: 200, onComplete: () => exp.destroy() })
-        const pb = (scene as any).playerBase as Phaser.GameObjects.Image | undefined
-        const pt = (scene as any).playerTurret as Phaser.GameObjects.Image | undefined
+        const pt = gameAny.playerTurret as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           pb.setTint(0xffffff)
           scene.time.delayedCall(60, () => { if (pb.active) pb.clearTint() })
@@ -183,8 +268,7 @@ export class Scout {
           pt.setTint(0xffffff)
           scene.time.delayedCall(60, () => { if (pt.active) pt.clearTint() })
         }
-        // Notify scene that player was hit — every shell that reaches player counts
-        const gameAny = scene as any
+        // Notify scene that player was hit — every shell that reaches player counts, but i-frames & miss handle spam
         if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
           gameAny.onEnemyShellHitPlayer(1)
         }
@@ -286,9 +370,10 @@ export class Scout {
     this.maxHits = Math.ceil(wagerFactor * this.baseHP)
     this.hits = this.maxHits
     this.alive = true
+    this.isWindingUp = false
     if (this.healthBarBg) { this.healthBarBg.setVisible(true); this.healthBarBg.setPosition(x, y - 16) }
     if (this.healthBarFill) { this.healthBarFill.setVisible(true); this.healthBarFill.setPosition(x - 12, y - 16); (this.healthBarFill as any).width = 24 }
-    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(100, 400)
+    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(400, 800)
     this.targetX = Phaser.Math.Between(30, 290)
     this.targetY = Phaser.Math.Between(30, 200)
     // fade in from small

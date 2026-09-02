@@ -31,6 +31,13 @@ export class Game extends Phaser.Scene {
   private playerHealthLabel?: Phaser.GameObjects.Text
   private gainsHudText?: Phaser.GameObjects.Text
 
+  // Fire-spam fix: shared global cooldown + i-frames
+  private nextEnemyFireTime = 0
+  private readonly globalEnemyFireCooldown = 700
+  private playerInvulnerableUntil = 0
+  private readonly playerIFramesMs = 800
+  private playerBlinkTween?: Phaser.Tweens.Tween
+
   // Game Over UI refs
   private gameOverContainer?: Phaser.GameObjects.Container
   private gameOverBackdrop?: Phaser.GameObjects.Rectangle
@@ -53,6 +60,10 @@ export class Game extends Phaser.Scene {
     this.gameOverContainer = undefined
     this.gameOverBackdrop = undefined
     this.countUp?.stop()
+    this.nextEnemyFireTime = 0
+    this.playerInvulnerableUntil = 0
+    this.playerBlinkTween?.stop()
+    this.playerBlinkTween = undefined
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
@@ -130,6 +141,17 @@ export class Game extends Phaser.Scene {
       bot.base.on('pointerdown', pick)
       bot.turret.on('pointerdown', pick)
     })
+
+    // Fire-spam fix: stagger initial fire timers so all 3 don't burst at t=0
+    // Scout 1800 / Bruiser 2400 / Warlord 3000 already, but enforce round-robin offset on top
+    {
+      const now = this.time.now
+      this.bots.forEach((b: any, idx: number) => {
+        const interval = (b as any).fireInterval ?? 1800
+        ;(b as any).nextFireTime = now + interval + idx * 650 + Phaser.Math.Between(150, 400)
+      })
+      this.nextEnemyFireTime = now + 900 // grace at round start
+    }
 
     this.add
       .text(16, 16, `BET ${this.betAmount}`, {
@@ -336,12 +358,58 @@ export class Game extends Phaser.Scene {
     if (this.playerHealthLabel) this.playerHealthLabel.setVisible(!this.isGameOver)
   }
 
+  // ---- Fire-spam fix: global fire gate & i-frames ----
+  public canEnemyFire(now: number): boolean {
+    if (this.isGameOver) return false
+    return now >= this.nextEnemyFireTime
+  }
+
+  public notifyEnemyFired(now: number): void {
+    this.nextEnemyFireTime = now + this.globalEnemyFireCooldown
+  }
+
+  public isPlayerInvulnerable(now: number): boolean {
+    return now < this.playerInvulnerableUntil
+  }
+
+  private startPlayerIFramesVisual(): void {
+    this.playerBlinkTween?.stop()
+    this.playerBlinkTween = undefined
+    // reset alpha
+    this.playerBase.setAlpha(1)
+    this.playerTurret.setAlpha(1)
+    // blink 800ms: 4 on/off cycles (~100ms each half)
+    this.playerBlinkTween = this.tweens.add({
+      targets: [this.playerBase, this.playerTurret],
+      alpha: 0.35,
+      duration: 90,
+      yoyo: true,
+      repeat: 4,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.playerBase.setAlpha(1)
+        this.playerTurret.setAlpha(1)
+        this.playerBlinkTween = undefined
+      },
+    })
+  }
+
+  private stopPlayerIFramesVisual(): void {
+    this.playerBlinkTween?.stop()
+    this.playerBlinkTween = undefined
+    this.playerBase.setAlpha(1)
+    this.playerTurret.setAlpha(1)
+  }
+
   /** Called by bot fire onComplete — every shell that reaches player counts as hit */
   public onEnemyShellHitPlayer(damage = 1) {
     if (this.isGameOver || this.gameOverShown) return
     if (this.playerHits <= 0) return
+    const now = this.time.now
+    // i-frames: absorb if still invulnerable
+    if (now < this.playerInvulnerableUntil) return
     this.playerHits = Math.max(0, this.playerHits - damage)
-    // flash player white
+    // flash player white (only on actual damage)
     this.playerBase.setTint(0xffffff)
     this.playerTurret.setTint(0xffffff)
     this.time.delayedCall(60, () => {
@@ -350,11 +418,14 @@ export class Game extends Phaser.Scene {
     })
     this.updatePlayerHealthBar()
     this.updateGainsHud()
-    // small shake per hit already done in bot, add subtle extra if player hurt
+    // i-frames window after a successful hit — 800ms (player can reposition)
     if (this.playerHits > 0) {
+      this.playerInvulnerableUntil = now + this.playerIFramesMs
+      this.startPlayerIFramesVisual()
       this.cameras.main.shake(90, 0.006)
     }
     if (this.playerHits <= 0) {
+      this.stopPlayerIFramesVisual()
       this.triggerGameOver()
     }
   }

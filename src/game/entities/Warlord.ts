@@ -16,8 +16,9 @@ export class Warlord {
   private healthBarBg?: Phaser.GameObjects.Rectangle
   private healthBarFill?: Phaser.GameObjects.Rectangle
 
-  readonly fireInterval = 1500
+  readonly fireInterval = 3000
   private nextFireTime = 0
+  private isWindingUp = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, betAmount = 10, maxBet = 100) {
     const pt = { x, y }
@@ -35,7 +36,7 @@ export class Warlord {
     this.hits = this.maxHits
     this.alive = true
     this.createHealthBar(scene)
-    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(0, 500)
+    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(500, 1000)
   }
 
   private pickNewTarget(scene: Phaser.Scene) {
@@ -96,11 +97,60 @@ export class Warlord {
 
   private tryFire(scene: Phaser.Scene, playerX: number, playerY: number) {
     if (!this.alive) return
+    if (this.isWindingUp) return
+    const gameAny: any = scene as any
+    if (gameAny.isGameOver) return
     const now = scene.time.now
     if (now < this.nextFireTime) return
-    const jitter = Phaser.Math.Between(-250, 250)
+    if (typeof gameAny.canEnemyFire === 'function' && !gameAny.canEnemyFire(now)) return
+    // Warlord has instant aim but still require telegraph window
+    const desired = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY) + Math.PI / 2
+    const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
+    if (Math.abs(diff) > 0.35) return
+    const dist = Phaser.Math.Distance.Between(this.turret.x, this.turret.y, playerX, playerY)
+    if (dist > 360) return
+    if (dist < 18) return
+
+    if (typeof gameAny.notifyEnemyFired === 'function') gameAny.notifyEnemyFired(now)
+    const jitter = Phaser.Math.Between(-320, 320)
     this.nextFireTime = now + this.fireInterval + jitter
-    this.fire(scene, playerX, playerY)
+    this.isWindingUp = true
+
+    this.base.setTint(0xffffff)
+    this.turret.setTint(0xffffff)
+    scene.tweens.add({ targets: [this.base, this.turret], scale: 0.92, duration: 130, yoyo: true, ease: 'Quad.easeOut' })
+    const marker = scene.add.rectangle(this.base.x, this.base.y - 18, 6, 6, 0xffff66)
+    marker.setDepth(13)
+    marker.setAlpha(0.95)
+    marker.setStrokeStyle(1, 0x1a1a1a)
+    const syncMarker = scene.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        if (!marker.active) { syncMarker.remove(); return }
+        if (!this.base.active) { marker.destroy(); syncMarker.remove(); return }
+        marker.setPosition(this.base.x, this.base.y - 18)
+      },
+    })
+    // Warlord heavier telegraph — 360ms windup distinguishes big threat
+    scene.time.delayedCall(360, () => {
+      syncMarker.remove()
+      marker.destroy()
+      this.isWindingUp = false
+      if (!this.alive || !this.base.active) {
+        if (this.base.active) { this.base.clearTint(); this.base.setTint(this.tintColor) }
+        if (this.turret.active) { this.turret.clearTint(); this.turret.setTint(this.tintColor) }
+        return
+      }
+      if (gameAny.isGameOver) {
+        this.base.clearTint(); this.turret.clearTint()
+        if (this.alive) { this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor) }
+        return
+      }
+      this.base.clearTint(); this.turret.clearTint()
+      this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor)
+      this.fire(scene, playerX, playerY)
+    })
   }
 
   private fire(scene: Phaser.Scene, playerX: number, playerY: number) {
@@ -115,6 +165,8 @@ export class Warlord {
     const shell = scene.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.62)
     shell.setDepth(12)
+    const destX = playerX
+    const destY = playerY
     const trailEv = scene.time.addEvent({
       delay: 20,
       loop: true,
@@ -129,24 +181,47 @@ export class Warlord {
     })
     scene.tweens.add({
       targets: shell,
-      x: playerX,
-      y: playerY,
+      x: destX,
+      y: destY,
       duration: 480,
       ease: 'Linear',
       onComplete: () => {
         shell.destroy()
         trailEv.remove()
+        const gameAny: any = scene as any
+        if (gameAny.isGameOver) return
+        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+          const puff = scene.add.image(destX, destY, 'explosion_small_1')
+          puff.setScale(0.55)
+          puff.setAlpha(0.45)
+          puff.setTint(0x8ecfff)
+          puff.setDepth(13)
+          scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
+          return
+        }
+        const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
+        if (pb && pb.active) {
+          const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
+          if (actualDist > 38) {
+            const miss = scene.add.image(destX, destY, 'explosion_small_1')
+            miss.setScale(0.5)
+            miss.setAlpha(0.35)
+            miss.setTint(0xaaaaaa)
+            miss.setDepth(13)
+            scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+            if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            return
+          }
+        }
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.5 })
         scene.cameras.main.shake(90, 0.006)
-        const exp = scene.add.image(playerX, playerY, 'explosion_small_1')
+        const exp = scene.add.image(destX, destY, 'explosion_small_1')
         exp.setScale(1.0)
         exp.setDepth(13)
         scene.tweens.add({ targets: exp, scale: 1.4, alpha: 0, duration: 220, onComplete: () => exp.destroy() })
-        const pb = (scene as any).playerBase as Phaser.GameObjects.Image | undefined
-        const pt = (scene as any).playerTurret as Phaser.GameObjects.Image | undefined
+        const pt = gameAny.playerTurret as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) { pb.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pb.active) pb.clearTint() }) }
         if (pt && pt.active) { pt.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pt.active) pt.clearTint() }) }
-        const gameAny = scene as any
         if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
           gameAny.onEnemyShellHitPlayer(1)
         }
@@ -225,9 +300,10 @@ export class Warlord {
     this.maxHits = Math.ceil(wagerFactor * this.baseHP)
     this.hits = this.maxHits
     this.alive = true
+    this.isWindingUp = false
     if (this.healthBarBg) { this.healthBarBg.setVisible(true); this.healthBarBg.setPosition(x, y - 16) }
     if (this.healthBarFill) { this.healthBarFill.setVisible(true); this.healthBarFill.setPosition(x - 12, y - 16); (this.healthBarFill as any).width = 24 }
-    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(150, 600)
+    this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(500, 1000)
     this.targetX = Phaser.Math.Between(30, 290)
     this.targetY = Phaser.Math.Between(30, 200)
     this.base.setScale(0.3); this.turret.setScale(0.3)
