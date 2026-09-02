@@ -245,10 +245,17 @@ export class TitleScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
+  private getPlayerBarrelTip(): { x: number; y: number } {
+    const rot = this.playerTurret.rotation
+    const lx = Math.cos(rot - Math.PI / 2) * 12
+    const ly = Math.sin(rot - Math.PI / 2) * 12
+    return { x: this.playerTurret.x + lx, y: this.playerTurret.y + ly }
+  }
+
   update() {
     // Each bot own code, random free space, no collide, barrel aims at you
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
-    const minDist = 28
+    const minDist = 30
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
@@ -286,25 +293,26 @@ export class TitleScene extends Phaser.Scene {
     const bot: any = this.bots[idx]
     if (!bot) return
     const target = { x: bot.turret.x, y: bot.turret.y }
-    const start = { x: this.playerBase.x, y: this.playerBase.y - 4 }
+    const tip = this.getPlayerBarrelTip()
 
     this.audio.playSfx('sfx_fire', { volume: 0.7 })
     this.audio.duckMusic()
 
     this.tweens.add({
       targets: [this.playerBase, this.playerTurret],
-      y: start.y - 3,
+      y: tip.y - 3,
       duration: 60,
       yoyo: true,
       ease: 'Quad.easeOut',
     })
 
-    const flash = this.add.image(start.x + 10, start.y, 'muzzle_1')
+    const flash = this.add.image(tip.x, tip.y, 'muzzle_1')
     flash.setScale(0.6)
+    flash.setRotation(this.playerTurret.rotation)
     flash.setDepth(5)
     this.time.delayedCall(70, () => flash.destroy())
 
-    const shell = this.add.image(start.x, start.y, 'shell')
+    const shell = this.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.7)
     shell.setDepth(6)
     const trailTimer = this.time.addEvent({

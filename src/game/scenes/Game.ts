@@ -9,11 +9,16 @@ type Bot = Scout | Bruiser | Warlord
 
 export class Game extends Phaser.Scene {
   private audio!: AudioManager
-  private playerBase!: Phaser.GameObjects.Image
-  private playerTurret!: Phaser.GameObjects.Image
+  // exposed for bot fire-back via (scene as any).playerBase — keep public-ish
+  public playerBase!: Phaser.GameObjects.Image
+  public playerTurret!: Phaser.GameObjects.Image
   private bots: Bot[] = []
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key }
+
+  // bet-scaled health mock (read from scene in real integration with HostSnapshot)
+  private betAmount = 10
+  private maxBet = 100
 
   constructor() {
     super('Game')
@@ -64,7 +69,7 @@ export class Game extends Phaser.Scene {
       const pos = positions[idx]
       const rx = pos.x + Phaser.Math.Between(-20, 20)
       const ry = pos.y + Phaser.Math.Between(-10, 10)
-      const bot: any = new Cls(this, rx, ry)
+      const bot: any = new Cls(this, rx, ry, this.betAmount, this.maxBet)
       this.bots.push(bot)
       this.add.image(pos.x, pos.y + 10, 'bunker_intact').setScale(0.9).setOrigin(0.5).setDepth(-1).setAlpha(0.3)
       this.add
@@ -95,7 +100,7 @@ export class Game extends Phaser.Scene {
     })
 
     this.add
-      .text(16, 16, 'BET 10', {
+      .text(16, 16, `BET ${this.betAmount}`, {
         fontFamily: '"VT323"',
         fontSize: '12px',
         color: PALETTE_HEX.yellow,
@@ -191,7 +196,7 @@ export class Game extends Phaser.Scene {
 
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
 
-    const minDist = 28
+    const minDist = 30
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
@@ -209,23 +214,38 @@ export class Game extends Phaser.Scene {
         }
       }
     }
-    // Keep bots inside free space
+    // Keep bots inside free space — wander anywhere on free space
     this.bots.forEach((b: any) => {
       b.base.x = Phaser.Math.Clamp(b.base.x, 24, width - 24)
       b.base.y = Phaser.Math.Clamp(b.base.y, 30, height - 40)
       b.turret.x = b.base.x; b.turret.y = b.base.y
     })
-    // Player barrel auto-detects closest bot and auto-aims for strike (you move body, barrel auto-aims)
+    // Player barrel auto-detects closest alive bot and auto-aims for strike (you move body, barrel auto-aims)
     let closest: any = null
     let closestDist = Infinity
     this.bots.forEach((b: any) => {
+      if ((b as any).alive === false) return
       const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
       if (d < closestDist) { closestDist = d; closest = b }
     })
+    // fallback to any if all dead (during explosion)
+    if (!closest) {
+      this.bots.forEach((b: any) => {
+        const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
+        if (d < closestDist) { closestDist = d; closest = b }
+      })
+    }
     if (closest) {
       const ang = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, closest.turret.x, closest.turret.y)
       this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, ang + Math.PI / 2, 0.28)
     }
+  }
+
+  private getPlayerBarrelTip(): { x: number; y: number } {
+    const rot = this.playerTurret.rotation
+    const lx = Math.cos(rot - Math.PI / 2) * 12
+    const ly = Math.sin(rot - Math.PI / 2) * 12
+    return { x: this.playerTurret.x + lx, y: this.playerTurret.y + ly }
   }
 
   private handlePick(index: number) {
@@ -244,65 +264,111 @@ export class Game extends Phaser.Scene {
   }
 
   private handleFire() {
+    // Find closest alive bot
+    let bestIdx = -1
+    let bestDist = Infinity
+    this.bots.forEach((b: any, i: number) => {
+      if ((b as any).alive === false) return
+      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
+      if (d < bestDist) { bestDist = d; bestIdx = i }
+    })
+    // if all dead, pick any
+    if (bestIdx === -1) {
+      this.bots.forEach((b: any, i: number) => {
+        const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
+        if (d < bestDist) { bestDist = d; bestIdx = i }
+      })
+    }
+    if (bestIdx === -1) return
+    const target: any = this.bots[bestIdx]
+    if (!target || target.alive === false) return
+
+    const tip = this.getPlayerBarrelTip()
     this.audio.playSfx('sfx_fire', { volume: 0.85 })
     this.audio.duckMusic()
     this.cameras.main.shake(120, 0.008)
     this.tweens.add({ targets: [this.playerBase, this.playerTurret], y: this.playerBase.y - 2, duration: 60, yoyo: true, ease: 'Quad.easeOut' })
-    const flash = this.add.image(this.playerTurret.x, this.playerTurret.y - 10, 'muzzle_1')
+    const flash = this.add.image(tip.x, tip.y, 'muzzle_1')
     flash.setScale(0.7)
+    flash.setRotation(this.playerTurret.rotation)
+    flash.setDepth(14)
     this.time.delayedCall(80, () => flash.destroy())
-    let bestIdx = 0
-    let bestDist = Infinity
-    this.bots.forEach((b: any, i: number) => {
-      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
-      if (d < bestDist) { bestDist = d; bestIdx = i }
-    })
-    const target: any = this.bots[bestIdx]
-    const shell = this.add.image(this.playerTurret.x, this.playerTurret.y - 8, 'shell')
+
+    const shell = this.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.6)
+    shell.setDepth(11)
+    // trail
+    const trailEv = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        if (!shell.active) { trailEv.remove(); return }
+        const t = this.add.image(shell.x, shell.y, 'shell')
+        t.setScale(0.22)
+        t.setAlpha(0.55)
+        t.setDepth(10)
+        this.tweens.add({ targets: t, alpha: 0, scale: 0.12, duration: 160, onComplete: () => t.destroy() })
+      },
+    })
+
+    // capture target position at launch (target may move, but we tween to where it was — for simplicity track live)
+    const destX = target.turret.x
+    const destY = target.turret.y
     this.tweens.add({
       targets: shell,
-      x: target.turret.x,
-      y: target.turret.y,
+      x: destX,
+      y: destY,
       duration: 280,
+      ease: 'Linear',
       onComplete: () => {
         shell.destroy()
-        this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
-        const exp = this.add.image(target.turret.x, target.turret.y, 'explosion_small_1')
-        exp.setScale(1.2)
-        this.tweens.add({ targets: exp, scale: 1.8, alpha: 0, duration: 260, onComplete: () => exp.destroy() })
-        target.hit(this)
-        this.audio.playSfx('sfx_win', { volume: 0.6 })
-        for (let c = 0; c < 3; c++) this.time.delayedCall(c * 80, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
-        this.time.delayedCall(520, () => this.respawnEnemy(bestIdx))
+        trailEv.remove()
+        // re-evaluate target still alive and near
+        if (!target.alive) return
+        const killed = target.hit(this)
+        if (killed) {
+          // big explosion already handled inside hit (sfx_explosion_big, shake, flash, 1.5-2.0)
+          this.audio.playSfx('sfx_win', { volume: 0.65 })
+          for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
+          // coins spray
+          for (let c = 0; c < 6; c++) {
+            const cx = destX + Phaser.Math.Between(-8, 8)
+            const coin = this.add.image(cx, destY, 'coin_1')
+            coin.setScale(0.55)
+            coin.setDepth(12)
+            this.tweens.add({
+              targets: coin,
+              y: destY - 14 - (c % 3) * 4,
+              x: cx + (c % 2 === 0 ? 5 : -5),
+              alpha: 0,
+              duration: 420,
+              ease: 'Quad.easeOut',
+              delay: c * 18,
+              onComplete: () => coin.destroy(),
+            })
+          }
+          this.time.delayedCall(760, () => this.respawnEnemy(bestIdx))
+        } else {
+          // not killed — small hit feedback already inside hit, add subtle coin tick for feedback
+          this.audio.playSfx('sfx_coin_tick', { volume: 0.35 })
+        }
       },
     })
   }
 
   private respawnEnemy(idx: number) {
     const bot: any = this.bots[idx]
-    this.tweens.add({
-      targets: [bot.base, bot.turret],
-      alpha: 0,
-      scale: 0.2,
-      duration: 180,
-      onComplete: () => {
-        bot.base.x = Phaser.Math.Between(30, 290)
-        bot.base.y = Phaser.Math.Between(30, 120)
-        bot.turret.x = bot.base.x; bot.turret.y = bot.base.y
-        bot.targetX = Phaser.Math.Between(30, 290)
-        bot.targetY = Phaser.Math.Between(30, 200)
-        const tints = [0x4ff2e3, 0xff4fd8, 0xffd94f, 0x58ff9b]
-        const tint = tints[Math.floor(Math.random() * tints.length)]
-        bot.base.setTint(tint); bot.turret.setTint(tint)
-        this.tweens.add({
-          targets: [bot.base, bot.turret],
-          alpha: 1,
-          scale: 0.85,
-          duration: 220,
-          onComplete: () => { bot.base.clearTint(); bot.turret.clearTint() },
-        })
-      },
-    })
+    const x = Phaser.Math.Between(30, 290)
+    const y = Phaser.Math.Between(30, 120)
+    // delegate to bot's own respawn (handles health reset, bar, tint, scale, fire timer)
+    if (typeof bot.respawn === 'function') {
+      bot.respawn(this, x, y, this.betAmount, this.maxBet)
+    } else {
+      // fallback
+      bot.base.setPosition(x, y)
+      bot.turret.setPosition(x, y)
+      bot.targetX = Phaser.Math.Between(30, 290)
+      bot.targetY = Phaser.Math.Between(30, 200)
+    }
   }
 }
