@@ -36,11 +36,6 @@ export class Game extends Phaser.Scene {
     this.playerTurret.setOrigin(0.5, 0.7)
     this.playerBase.setDepth(2)
     this.playerTurret.setDepth(3)
-    // Player barrel aims at mouse — keep others aiming at you
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      const ang = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, p.x, p.y)
-      this.playerTurret.rotation = ang + Math.PI / 2
-    })
 
     this.cursors = this.input.keyboard!.createCursorKeys()
     this.wasd = {
@@ -220,6 +215,17 @@ export class Game extends Phaser.Scene {
       b.base.y = Phaser.Math.Clamp(b.base.y, 30, height - 40)
       b.turret.x = b.base.x; b.turret.y = b.base.y
     })
+    // Player barrel auto-detects closest bot and auto-aims for strike (you move body, barrel auto-aims)
+    let closest: any = null
+    let closestDist = Infinity
+    this.bots.forEach((b: any) => {
+      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
+      if (d < closestDist) { closestDist = d; closest = b }
+    })
+    if (closest) {
+      const ang = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, closest.turret.x, closest.turret.y)
+      this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, ang + Math.PI / 2, 0.28)
+    }
   }
 
   private handlePick(index: number) {

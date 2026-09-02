@@ -266,18 +266,17 @@ export class TitleScene extends Phaser.Scene {
         }
       }
     }
-    // Player turret aims at closest bot, you can move yours (mouse)
-    const idx = this.attractIndex % this.bots.length
-    const target: any = (this.bots[idx] as any)?.turret
-    if (target) {
-      const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
-      this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, pAngle + Math.PI / 2, 0.22)
-    }
-    // Player barrel movable via mouse
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      const ang = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, p.x, p.y)
-      this.playerTurret.rotation = ang + Math.PI / 2
+    // Player barrel auto-detects closest bot (no mouse needed, casino auto-aim)
+    let closest: any = null
+    let cDist = Infinity
+    this.bots.forEach((b: any) => {
+      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
+      if (d < cDist) { cDist = d; closest = b.turret }
     })
+    if (closest) {
+      const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, closest.x, closest.y)
+      this.playerTurret.rotation = Phaser.Math.Angle.RotateTo(this.playerTurret.rotation, pAngle + Math.PI / 2, 0.28)
+    }
   }
 
   private playAttract() {
