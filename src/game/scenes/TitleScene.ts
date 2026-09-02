@@ -10,6 +10,8 @@ export class TitleScene extends Phaser.Scene {
   private enemyBases: Phaser.GameObjects.Image[] = []
   private enemyTurrets: Phaser.GameObjects.Image[] = []
   private enemyPositions: { x: number; y: number }[] = []
+  private enemyData: { base: Phaser.GameObjects.Image; turret: Phaser.GameObjects.Image; dir: number; speed: number; t: number }[] = []
+  private borderPath!: Phaser.Curves.Path
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
   private audio!: AudioManager
@@ -48,6 +50,13 @@ export class TitleScene extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
+    // Border path for patrol — inset 20px
+    this.borderPath = new Phaser.Curves.Path(20, 20)
+    this.borderPath.lineTo(width - 20, 20)
+    this.borderPath.lineTo(width - 20, height - 40)
+    this.borderPath.lineTo(20, height - 40)
+    this.borderPath.lineTo(20, 20)
+
     // Player — base + turret (turret will aim at current target)
     this.playerBase = this.add.image(160, height - 32, 'player_base')
     this.playerBase.setScale(0.9)
@@ -75,15 +84,19 @@ export class TitleScene extends Phaser.Scene {
       { x: 160, y: 66, base: 'enemy2_base', turret: 'enemy2_turret', name: 'BRUISER', mult: '×15' },
       { x: 256, y: 66, base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
     ]
-    this.enemyPositions = enemies.map((e) => ({ x: e.x, y: e.y }))
-    enemies.forEach((e) => {
-      const base = this.add.image(e.x, e.y, e.base)
+    enemies.forEach((e, idx) => {
+      const t = (idx * 0.33 + 0.17) % 1
+      const dir = idx % 2 === 0 ? 1 : -1
+      const speed = 0.00018 + idx * 0.00007
+      const pt = this.borderPath.getPoint(t)
+      const base = this.add.image(pt.x, pt.y, e.base)
       base.setScale(0.85)
-      const turret = this.add.image(e.x, e.y, e.turret)
+      const turret = this.add.image(pt.x, pt.y, e.turret)
       turret.setScale(0.85)
       turret.setOrigin(0.5, 0.7)
       this.enemyBases.push(base)
       this.enemyTurrets.push(turret)
+      this.enemyData.push({ base, turret, dir, speed, t })
 
       this.add
         .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
@@ -248,27 +261,36 @@ export class TitleScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
-  update() {
+  update(_: number, delta: number) {
+    // Border patrol — random order any direction
+    this.enemyData.forEach((e) => {
+      e.t = (e.t + e.dir * e.speed * delta) % 1
+      if (e.t < 0) e.t += 1
+      const pt = this.borderPath.getPoint(e.t)
+      e.base.x = pt.x
+      e.base.y = pt.y
+      e.turret.x = pt.x
+      e.turret.y = pt.y
+    })
     // AI tanks aim at player (visual only, VRF still decides)
     const px = this.playerBase.x
     const py = this.playerBase.y
     this.enemyTurrets.forEach((turret) => {
       const angle = Phaser.Math.Angle.Between(turret.x, turret.y, px, py)
-      // turret sprite points up (-90deg), so add 90deg
       turret.rotation = angle + Math.PI / 2
     })
-    // Player turret aims at current attract target (cycle)
-    const idx = this.attractIndex % this.enemyPositions.length
-    const target = this.enemyPositions[idx]
+    const idx = this.attractIndex % this.enemyTurrets.length
+    const target = this.enemyTurrets[idx]
     const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
     this.playerTurret.rotation = pAngle + Math.PI / 2
   }
 
   private playAttract() {
     if ((this as any)._starting) return
-    const idx = this.attractIndex % this.enemyPositions.length
+    const idx = this.attractIndex % this.enemyTurrets.length
     this.attractIndex++
-    const target = this.enemyPositions[idx]
+    const turret = this.enemyTurrets[idx]
+    const target = { x: turret.x, y: turret.y }
     const start = { x: this.playerBase.x, y: this.playerBase.y - 4 }
 
     this.audio.playSfx('sfx_fire', { volume: 0.7 })
