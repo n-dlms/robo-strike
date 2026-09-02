@@ -183,6 +183,11 @@ export class Scout {
           pt.setTint(0xffffff)
           scene.time.delayedCall(60, () => { if (pt.active) pt.clearTint() })
         }
+        // Notify scene that player was hit — every shell that reaches player counts
+        const gameAny = scene as any
+        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
+          gameAny.onEnemyShellHitPlayer(1)
+        }
       },
     })
   }

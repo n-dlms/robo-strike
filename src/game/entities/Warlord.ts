@@ -146,6 +146,10 @@ export class Warlord {
         const pt = (scene as any).playerTurret as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) { pb.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pb.active) pb.clearTint() }) }
         if (pt && pt.active) { pt.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pt.active) pt.clearTint() }) }
+        const gameAny = scene as any
+        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
+          gameAny.onEnemyShellHitPlayer(1)
+        }
       },
     })
   }

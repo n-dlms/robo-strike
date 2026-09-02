@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { PALETTE_HEX } from '../../config/palette'
 import { AudioManager } from '../systems/AudioManager'
+import { CountUp } from '../systems/CountUp'
 import { Scout } from '../entities/Scout'
 import { Bruiser } from '../entities/Bruiser'
 import { Warlord } from '../entities/Warlord'
@@ -20,6 +21,23 @@ export class Game extends Phaser.Scene {
   private betAmount = 10
   private maxBet = 100
 
+  // Player health — mock maxHits 5, bar 40x4 (larger than bots 24x3), visible during gameplay
+  private playerMaxHits = 5
+  private playerHits = 5
+  public isGameOver = false
+  private totalGains = 0 // sum of all win multipliers
+  private playerHealthBarBg?: Phaser.GameObjects.Rectangle
+  private playerHealthBarFill?: Phaser.GameObjects.Rectangle
+  private playerHealthLabel?: Phaser.GameObjects.Text
+  private gainsHudText?: Phaser.GameObjects.Text
+
+  // Game Over UI refs
+  private gameOverContainer?: Phaser.GameObjects.Container
+  private gameOverBackdrop?: Phaser.GameObjects.Rectangle
+  private gameOverGainsText?: Phaser.GameObjects.Text
+  private countUp?: CountUp
+  private gameOverShown = false
+
   constructor() {
     super('Game')
   }
@@ -28,6 +46,13 @@ export class Game extends Phaser.Scene {
     const { width, height } = this.scale
     this.audio = new AudioManager(this)
     this.audio.initMusic()
+    this.isGameOver = false
+    this.gameOverShown = false
+    this.playerHits = this.playerMaxHits
+    this.totalGains = 0
+    this.gameOverContainer = undefined
+    this.gameOverBackdrop = undefined
+    this.countUp?.stop()
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
@@ -42,6 +67,9 @@ export class Game extends Phaser.Scene {
     this.playerBase.setDepth(2)
     this.playerTurret.setDepth(3)
 
+    // Player health bar — 40x4 larger than bots 24x3, near player + HUD mirror
+    this.createPlayerHealthBar()
+
     this.cursors = this.input.keyboard!.createCursorKeys()
     this.wasd = {
       W: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W),
@@ -50,6 +78,10 @@ export class Game extends Phaser.Scene {
       D: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     }
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.isGameOver) {
+        // In Game Over, pointerdown is handled by popup — ignore move
+        return
+      }
       this.tweens.add({ targets: [this.playerBase, this.playerTurret], x: Phaser.Math.Clamp(p.x, 24, width - 24), y: Phaser.Math.Clamp(p.y, 40, height - 40), duration: 220, ease: 'Quad.easeOut' })
     })
 
@@ -108,6 +140,20 @@ export class Game extends Phaser.Scene {
         padding: { x: 4, y: 2 },
       })
       .setOrigin(0, 0.5)
+      .setDepth(10)
+
+    // Gains HUD (visible during gameplay) — top-left under BET
+    this.gainsHudText = this.add
+      .text(16, 30, `GAINS x${this.totalGains.toFixed(2)}`, {
+        fontFamily: '"VT323"',
+        fontSize: '10px',
+        color: PALETTE_HEX.white,
+        backgroundColor: PALETTE_HEX.outline,
+        padding: { x: 4, y: 1 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(10)
+      .setAlpha(0.9)
 
     const gState = this.audio.getState()
     const gMusic = this.add
@@ -163,6 +209,7 @@ export class Game extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
+      .setDepth(10)
 
     fireBtn.on('pointerdown', () => this.handleFire())
     this.input.keyboard?.on('keydown-SPACE', () => this.handleFire())
@@ -181,6 +228,11 @@ export class Game extends Phaser.Scene {
 
   update() {
     const { width, height } = this.scale
+    // Do not update gameplay when Game Over is active (freeze board except popup)
+    if (this.isGameOver) {
+      this.updatePlayerHealthBar()
+      return
+    }
     const speed = 1.4
     let dx = 0, dy = 0
     if (this.cursors.left.isDown || this.wasd.A.isDown) dx = -speed
@@ -220,6 +272,9 @@ export class Game extends Phaser.Scene {
       b.base.y = Phaser.Math.Clamp(b.base.y, 30, height - 40)
       b.turret.x = b.base.x; b.turret.y = b.base.y
     })
+    // Keep player health bar following player (40x4, larger than bots 24x3)
+    this.updatePlayerHealthBar()
+
     // Player barrel auto-detects closest alive bot and auto-aims for strike (you move body, barrel auto-aims)
     let closest: any = null
     let closestDist = Infinity
@@ -241,6 +296,85 @@ export class Game extends Phaser.Scene {
     }
   }
 
+  // ---- Player health bar (40x4, HUD + follow) ----
+  private createPlayerHealthBar() {
+    const x = this.playerBase.x
+    const y = this.playerBase.y - 18
+    // Background 40x4 navy outline #1a1a1a, depth above player
+    this.playerHealthBarBg = this.add.rectangle(x, y, 40, 4, 0x1a1a1a).setDepth(12).setOrigin(0.5)
+    this.playerHealthBarBg.setStrokeStyle(1, 0x1a1a1a)
+    // Fill anchored left
+    this.playerHealthBarFill = this.add.rectangle(x - 20, y, 40, 4, 0x58ff9b).setDepth(13).setOrigin(0, 0.5)
+    // Label "YOU" VT323 7px above bar
+    this.playerHealthLabel = this.add
+      .text(x, y - 8, 'YOU', {
+        fontFamily: '"VT323"',
+        fontSize: '7px',
+        color: PALETTE_HEX.white,
+        stroke: PALETTE_HEX.outline,
+        strokeThickness: 1,
+      })
+      .setOrigin(0.5)
+      .setDepth(13)
+      .setResolution(2)
+    this.updatePlayerHealthBar()
+  }
+
+  private updatePlayerHealthBar() {
+    if (!this.playerHealthBarBg || !this.playerHealthBarFill) return
+    const x = this.playerBase.x
+    const y = this.playerBase.y - 18
+    this.playerHealthBarBg.setPosition(x, y)
+    this.playerHealthBarFill.setPosition(x - 20, y)
+    if (this.playerHealthLabel) this.playerHealthLabel.setPosition(x, y - 8)
+    const pct = this.isGameOver ? 0 : Math.max(0, this.playerHits / this.playerMaxHits)
+    // Phaser Rectangle width setter
+    ;(this.playerHealthBarFill as any).width = 40 * pct
+    // Need to also update display via setSize? For Rectangle, width property controls display; we keep visible handling
+    this.playerHealthBarFill.setVisible(pct > 0 && !this.isGameOver)
+    this.playerHealthBarBg.setVisible(!this.isGameOver)
+    if (this.playerHealthLabel) this.playerHealthLabel.setVisible(!this.isGameOver)
+  }
+
+  /** Called by bot fire onComplete — every shell that reaches player counts as hit */
+  public onEnemyShellHitPlayer(damage = 1) {
+    if (this.isGameOver || this.gameOverShown) return
+    if (this.playerHits <= 0) return
+    this.playerHits = Math.max(0, this.playerHits - damage)
+    // flash player white
+    this.playerBase.setTint(0xffffff)
+    this.playerTurret.setTint(0xffffff)
+    this.time.delayedCall(60, () => {
+      if (!this.isGameOver && this.playerBase.active) this.playerBase.clearTint()
+      if (!this.isGameOver && this.playerTurret.active) this.playerTurret.clearTint()
+    })
+    this.updatePlayerHealthBar()
+    this.updateGainsHud()
+    // small shake per hit already done in bot, add subtle extra if player hurt
+    if (this.playerHits > 0) {
+      this.cameras.main.shake(90, 0.006)
+    }
+    if (this.playerHits <= 0) {
+      this.triggerGameOver()
+    }
+  }
+
+  private updateGainsHud() {
+    if (this.gainsHudText) {
+      this.gainsHudText.setText(`GAINS x${this.totalGains.toFixed(2)}`)
+    }
+  }
+
+  private getPayoutForBotIdx(idx: number): number {
+    // Map bot type to its jackpot multiplier as gains — within 0.7x..30x range
+    // SCOUT 30, BRUISER 15, WARLORD 11 per labels; also support fractional 0.7/2/6 variants via small random?
+    // For demo, use fixed jackpot but if want variety, could random tier. We'll keep deterministic.
+    if (idx === 0) return 30 // Scout
+    if (idx === 1) return 15 // Bruiser
+    if (idx === 2) return 11 // Warlord
+    return 1
+  }
+
   private getPlayerBarrelTip(): { x: number; y: number } {
     const rot = this.playerTurret.rotation
     const lx = Math.cos(rot - Math.PI / 2) * 12
@@ -249,6 +383,7 @@ export class Game extends Phaser.Scene {
   }
 
   private handlePick(index: number) {
+    if (this.isGameOver) return
     const labels = ['SCOUT', 'BRUISER', 'WARLORD']
     this.audio.playSfx('sfx_ui_blip')
     const t = this.add.text(160, 110, `PICKED ${labels[index]}`, {
@@ -264,6 +399,16 @@ export class Game extends Phaser.Scene {
   }
 
   private handleFire() {
+    // If Game Over is shown, FIRE fast-forwards count or retries
+    if (this.isGameOver && this.gameOverShown) {
+      if (this.countUp?.isPlaying) {
+        this.countUp.skipToEnd()
+        return
+      }
+      this.handleRetry()
+      return
+    }
+    if (this.isGameOver) return
     // Find closest alive bot
     let bestIdx = -1
     let bestDist = Infinity
@@ -325,9 +470,15 @@ export class Game extends Phaser.Scene {
         trailEv.remove()
         // re-evaluate target still alive and near
         if (!target.alive) return
+        if (this.isGameOver) return
         const killed = target.hit(this)
         if (killed) {
           // big explosion already handled inside hit (sfx_explosion_big, shake, flash, 1.5-2.0)
+          // Accumulate gains — total multiplier sum
+          const payout = this.getPayoutForBotIdx(bestIdx)
+          this.totalGains += payout
+          this.updateGainsHud()
+          // Play win jingle for gains if any
           this.audio.playSfx('sfx_win', { volume: 0.65 })
           for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
           // coins spray
@@ -357,6 +508,7 @@ export class Game extends Phaser.Scene {
   }
 
   private respawnEnemy(idx: number) {
+    if (this.isGameOver) return
     const bot: any = this.bots[idx]
     const x = Phaser.Math.Between(30, 290)
     const y = Phaser.Math.Between(30, 120)
@@ -370,5 +522,246 @@ export class Game extends Phaser.Scene {
       bot.targetX = Phaser.Math.Between(30, 290)
       bot.targetY = Phaser.Math.Between(30, 200)
     }
+  }
+
+  // ---- Game Over ----
+  private triggerGameOver() {
+    if (this.gameOverShown) return
+    this.isGameOver = true
+    this.gameOverShown = true
+    // Hide player health bar
+    this.updatePlayerHealthBar()
+    // Final big explosion at player
+    this.playPlayerBigExplosion()
+    // sfx_explosion_big already in explosion, plus additional big explosion sound
+    // sfx_miss losing jingle will play in popup (1.4s OGA losegamemusic)
+    // Shake + flash for death
+    this.cameras.main.shake(220, 0.016)
+    this.cameras.main.flash(180, 20, 30, 80)
+    // Desaturate effect via tinted overlay + gray flash
+    // Dim 55% navy will be added in popup
+    this.time.delayedCall(420, () => this.showGameOverPopup())
+  }
+
+  private playPlayerBigExplosion(scene: Phaser.Scene = this) {
+    const audio: any = (scene as any).audio
+    if (audio) audio.playSfx('sfx_explosion_big', { volume: 0.95 })
+    else if (scene.sound) scene.sound.play('sfx_explosion_big', { volume: 0.95 } as any)
+    scene.cameras.main.shake(260, 0.02)
+    scene.cameras.main.flash(200, 255, 230, 100)
+    const x = this.playerBase.x
+    const y = this.playerBase.y
+    const scale = Phaser.Math.FloatBetween(1.6, 2.1)
+    const key = scene.textures.exists('explosion_big_1') ? 'explosion_big_1' : 'explosion_small_1'
+    const exp = scene.add.image(x, y, key)
+    exp.setScale(scale)
+    exp.setDepth(15)
+    let frame = 1
+    const cycle = scene.time.addEvent({
+      delay: 50,
+      loop: true,
+      callback: () => {
+        frame++
+        if (frame > 6) { cycle.remove(); return }
+        const k = `explosion_big_${frame}`
+        if (scene.textures.exists(k)) exp.setTexture(k)
+        exp.setScale(scale + frame * 0.06)
+      },
+    })
+    scene.tweens.add({
+      targets: exp,
+      alpha: 0,
+      duration: 480,
+      delay: 280,
+      onComplete: () => { exp.destroy(); cycle.remove() },
+    })
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.3, 0.3)
+      const dist = 14 + Phaser.Math.Between(6, 18)
+      const px = x + Math.cos(angle) * dist
+      const py = y + Math.sin(angle) * dist
+      const col = i % 2 === 0 ? 0x58ff9b : 0xff4f4f
+      const part = scene.add.rectangle(x, y, 4, 4, col)
+      part.setStrokeStyle(1, 0x1a1a1a)
+      part.setDepth(14)
+      scene.tweens.add({
+        targets: part,
+        x: px,
+        y: py,
+        alpha: 0,
+        duration: 360,
+        ease: 'Quad.easeOut',
+        onComplete: () => part.destroy(),
+      })
+    }
+    scene.tweens.add({ targets: [this.playerBase, this.playerTurret], alpha: 0, duration: 120 })
+    // Hide health bar elements fully
+    this.playerHealthBarBg?.setVisible(false)
+    this.playerHealthBarFill?.setVisible(false)
+    this.playerHealthLabel?.setVisible(false)
+  }
+
+  private showGameOverPopup() {
+    const { width, height } = this.scale
+    // Backdrop dim 55% navy #0a1a3f
+    this.gameOverBackdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x0a1a3f, 0.55)
+    this.gameOverBackdrop.setDepth(90)
+    this.gameOverBackdrop.setAlpha(0)
+    this.tweens.add({ targets: this.gameOverBackdrop, alpha: 0.55, duration: 180, ease: 'Cubic.easeOut' })
+
+    // Desaturate: add subtle gray overlay for 55% desaturation feel
+    const desat = this.add.rectangle(width / 2, height / 2, width, height, 0xaaaaaa, 0.12)
+    desat.setDepth(91)
+    desat.setAlpha(0)
+    this.tweens.add({ targets: desat, alpha: 0.12, duration: 180, ease: 'Cubic.easeOut' })
+
+    // Shake per spec — miss shake ±2px 150ms
+    this.cameras.main.shake(150, 0.009)
+
+    // Play losing jingle sfx_miss (1.4s OGA losegamemusic)
+    this.audio.playSfx('sfx_miss', { volume: 0.75 })
+
+    const container = this.add.container(width / 2, height / 2)
+    container.setDepth(100)
+    container.setAlpha(0)
+    container.setScale(0.82)
+    this.gameOverContainer = container
+
+    const panelW = 240
+    const panelH = 120
+    const g = this.add.graphics()
+    g.fillStyle(0x0a1a3f, 1)
+    g.lineStyle(1, 0x1a1a1a, 1)
+    g.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 6)
+    g.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 6)
+    // subtle inner highlight
+    g.lineStyle(1, 0x4ff2e3, 0.18)
+    g.strokeRoundedRect(-panelW / 2 + 1, -panelH / 2 + 1, panelW - 2, panelH - 2, 5)
+
+    // Title GAME OVER Press Start 2P
+    const title = this.add.text(0, -panelH / 2 + 18, 'GAME OVER', {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '11px',
+      color: PALETTE_HEX.white,
+      stroke: PALETTE_HEX.outline,
+      strokeThickness: 2,
+    }).setOrigin(0.5)
+
+    // Gains display VT323 — initially x0.00 then count up to totalGains
+    const gainsLabel = this.add.text(0, -2, 'x0.00', {
+      fontFamily: '"VT323"',
+      fontSize: '24px',
+      color: this.totalGains > 0 ? PALETTE_HEX.yellow : PALETTE_HEX.cyan,
+      stroke: PALETTE_HEX.outline,
+      strokeThickness: 1,
+    }).setOrigin(0.5)
+    gainsLabel.setResolution(2)
+    this.gameOverGainsText = gainsLabel
+
+    // Sub label if no gains vs gains
+    const subTextStr = this.totalGains > 0 ? `TOTAL GAINS` : `NO GAINS`
+    const subLabel = this.add.text(0, 16, subTextStr, {
+      fontFamily: '"VT323"',
+      fontSize: '10px',
+      color: PALETTE_HEX.white,
+    }).setOrigin(0.5)
+    subLabel.setAlpha(0.85)
+
+    // RETRY button — gold bg, Press Start 2P
+    const btnW = 84
+    const btnH = 22
+    const btnBg = this.add.rectangle(0, panelH / 2 - 20, btnW, btnH, 0xc0392b)
+    btnBg.setStrokeStyle(1, 0x1a1a1a)
+    btnBg.setDepth(1)
+    // inner gold highlight
+    const btnInner = this.add.rectangle(0, panelH / 2 - 21, btnW - 4, 2, 0xffd94f, 0.55)
+    btnInner.setDepth(2)
+    const retryText = this.add.text(0, panelH / 2 - 20, 'RETRY', {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '8px',
+      color: PALETTE_HEX.white,
+    }).setOrigin(0.5)
+    retryText.setDepth(3)
+    const retryHit = this.add.rectangle(0, panelH / 2 - 20, btnW, btnH, 0x000000, 0).setInteractive({ useHandCursor: true }).setDepth(4)
+
+    const hint = this.add.text(0, panelH / 2 - 4, 'FIRE / SPACE', {
+      fontFamily: '"VT323"',
+      fontSize: '7px',
+      color: PALETTE_HEX.cyan,
+    }).setOrigin(0.5)
+    hint.setAlpha(0.7)
+
+    container.add([g, title, gainsLabel, subLabel, btnBg, btnInner, retryText, retryHit, hint])
+    // Backdrop click to retry as well
+    this.gameOverBackdrop.setInteractive({ useHandCursor: true })
+    this.gameOverBackdrop.on('pointerdown', () => this.handleRetry())
+    retryHit.on('pointerdown', () => this.handleRetry())
+
+    // Keyboard RETRY
+    this.input.keyboard?.once('keydown-SPACE', () => this.handleRetry())
+    this.input.keyboard?.once('keydown-ENTER', () => this.handleRetry())
+    this.input.keyboard?.once('keydown-R', () => this.handleRetry())
+
+    // Tween in: scale 0.82->1 + fade 180ms Cubic.easeOut (spec §4)
+    this.tweens.add({
+      targets: container,
+      alpha: 1,
+      scale: 1,
+      duration: 180,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        // Start CountUp from 0x to gains with tick sounds if gains>0, else no win sound
+        if (this.totalGains > 0) {
+          this.audio.playSfx('sfx_win', { volume: 0.65 })
+          this.countUp = new CountUp(this, gainsLabel)
+          this.countUp.start(this.totalGains, {
+            playTick: () => this.audio.playSfx('sfx_coin_tick', { volume: 0.55 }),
+            playPop: () => this.audio.playSfx('sfx_ui_blip', { volume: 0.5 }),
+          })
+        } else {
+          gainsLabel.setText('x0.00')
+          // still pop
+          this.tweens.add({ targets: gainsLabel, scale: { from: 1, to: 1.12 }, duration: 70, ease: 'Back.easeOut', yoyo: true, onComplete: () => gainsLabel.setScale(1) })
+        }
+        // pulse RETRY button
+        this.tweens.add({ targets: [btnBg, retryText], y: panelH / 2 - 22, duration: 300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+      },
+    })
+
+    // Also allow FIRE button global to fast-forward count or retry
+    // Override handleFire behavior via isGameOver flag — SPACE capture already above, but add pointerdown to fast-forward
+    const fireOnce = () => {
+      if (this.countUp?.isPlaying) {
+        this.countUp.skipToEnd()
+      } else {
+        // do not auto-retry on first FIRE if counting — only after count done. But spec says FIRE/Space to restart after.
+        // We'll keep retry explicit — second press after count triggers retry via handleFire check.
+      }
+    }
+    this.input.once('pointerdown', fireOnce)
+    this.input.keyboard?.once('keydown-F', fireOnce)
+  }
+
+  private handleRetry() {
+    if (!this.isGameOver) return
+    this.countUp?.stop()
+    this.audio.playSfx('sfx_ui_blip')
+    // Fade out then restart scene cleanly
+    if (this.gameOverContainer) {
+      this.tweens.add({
+        targets: [this.gameOverContainer, this.gameOverBackdrop],
+        alpha: 0,
+        scale: 0.96,
+        duration: 140,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+          this.scene.restart()
+        },
+      })
+    } else {
+      this.scene.restart()
+    }
+    // Also restart via fade
+    this.cameras.main.fadeOut(180, 0, 0, 0)
   }
 }
