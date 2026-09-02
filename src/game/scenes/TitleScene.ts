@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { PALETTE, PALETTE_HEX } from '../../config/palette'
 
-export class Title extends Phaser.Scene {
+export class TitleScene extends Phaser.Scene {
   private attractIndex = 0
   private attractTimer?: Phaser.Time.TimerEvent
   private playerTank!: Phaser.GameObjects.Rectangle
@@ -55,7 +55,6 @@ export class Title extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     })
     // Player label small?
-    // Bunkers under enemies (sandbag) — 3 bunkers
     for (let i = 0; i < 3; i++) {
       const bx = 64 + i * 96
       const bunker = this.add.rectangle(bx, 78, 36, 10, PALETTE.navy)

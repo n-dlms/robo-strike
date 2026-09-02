@@ -58,6 +58,11 @@
 - **Next:** Phase 2 Casino Brain — `src/config/paytables.ts` single source + BigInt mapper + `scripts/simulate-rtp.ts` 1M + vitest, no Math.random, exit non-zero outside 93-98.
 - **Blockers:** None — scaffold is standalone, no SDK yet, no heavy deps, `assets/art` + `arcade` not yet wired (Phase 4), `RTP` math still in `docs/MATH.md` will be code-ified.
 
+### After Title Fix (2026-09-02)
+- **Done:** TitleScene fixed: arena backdrop (navy #0a1a3f + 40 starfield dots, 3 bunkers), player tank bottom-center cyan idle-bob, 3 enemy tanks SCOUT cyan ×30 / BRUISER magenta ×15 / WARLORD white ×11 (Press Start 2P labels), CRT scanline+vignette in-scene, attract loop every 4s (shell → explosion → coin burst, deterministic cycle, no Math.random, FX shake/hit-stop), modal keeps ROBO STRIKE/RETRO TANK CASINO + audio toggles (localStorage `roboStrike_audio_v1`), PRESS FIRE blinks 1Hz (500ms) + OR TAP, widget verified official `https://jam.chain.wtf/widget.js` in `index.html` (no hand-made badge), input click/tap/SPACE/ENTER/F → 0.5s black fade → GameScene, mobile touch via pointerdown, palette strict.
+- **Next:** Re-run build + manual browser check (no soccer/camo), then proceed to Phase 2 Casino Brain.
+- **Blockers:** None.
+
 ## Decisions Log (append-only)
 - 2026-09-01: Locked game spec to SECTION 2 — no scope creep.
 - 2026-09-01: Enforced $0 budget whitelist only.
