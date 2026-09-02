@@ -79,8 +79,8 @@ export class TitleScene extends Phaser.Scene {
       { name: 'WARLORD', mult: '×11' },
     ]
     botClasses.forEach((Cls, idx) => {
-      const x = 64 + idx * 96 + Phaser.Math.Between(-8, 8)
-      const y = 66 + Phaser.Math.Between(-6, 6)
+      const x = Phaser.Math.Between(30, 290)
+      const y = Phaser.Math.Between(30, 120)
       const bot: any = new Cls(this, x, y)
       this.bots.push(bot)
       this.add
