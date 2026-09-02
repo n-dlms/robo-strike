@@ -30,6 +30,17 @@ export class Boot extends Phaser.Scene {
     // Arcade border for reference (HTML already shows, but also preload for in-canvas if needed)
     this.load.image('arcade_gui', 'assets/arcade/oga_arcade_gui_sheet.png')
 
+    // Audio — real CC0 SFX + action loop (Phase 1 UI sounds)
+    this.load.audio('sfx_fire', ['assets/audio/sfx_fire.ogg', 'assets/audio/sfx_fire.wav'])
+    this.load.audio('sfx_explosion_small', ['assets/audio/sfx_explosion_small.ogg', 'assets/audio/sfx_explosion_small.wav'])
+    this.load.audio('sfx_explosion_big', ['assets/audio/sfx_explosion_big.ogg', 'assets/audio/sfx_explosion_big.wav'])
+    this.load.audio('sfx_win', ['assets/audio/sfx_win.ogg', 'assets/audio/sfx_win.wav'])
+    this.load.audio('sfx_jackpot', ['assets/audio/sfx_jackpot.ogg', 'assets/audio/sfx_jackpot.wav'])
+    this.load.audio('sfx_miss', ['assets/audio/sfx_miss.ogg', 'assets/audio/sfx_miss.wav'])
+    this.load.audio('sfx_coin_tick', ['assets/audio/sfx_coin_tick.ogg', 'assets/audio/sfx_coin_tick.wav'])
+    this.load.audio('sfx_ui_blip', ['assets/audio/sfx_ui_blip.ogg', 'assets/audio/sfx_ui_blip.wav'])
+    this.load.audio('music_loop', ['assets/audio/music_loop.ogg', 'assets/audio/music_loop.wav'])
+
     // Ensure all textures are NEAREST after load
     this.load.on('complete', () => {
       Object.values(this.textures.list).forEach((t: any) => {

@@ -1,29 +1,30 @@
 import Phaser from 'phaser'
 import { PALETTE_HEX } from '../../config/palette'
+import { AudioManager } from '../systems/AudioManager'
 
 export class Game extends Phaser.Scene {
+  private audio!: AudioManager
   constructor() {
     super('Game')
   }
 
   create() {
     const { width, height } = this.scale
+    this.audio = new AudioManager(this)
+    this.audio.initMusic()
 
-    // Real battlefield background CC0 sand
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
     this.add.image(width / 2, height / 2, 'bg_starfield').setAlpha(0.25).setDisplaySize(width, height)
 
     this.add.rectangle(width / 2, height - 30, width, 2, 0x1a1a1a).setAlpha(0.5)
 
-    // Player tank — REAL IMAGE (same as Title demo)
     const player = this.add.image(60, height - 70, 'player_idle_1')
     player.setScale(0.85)
     player.setOrigin(0.5)
     player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
     player.setTint(0x4ff2e3)
 
-    // 3 enemy tanks — REAL IMAGES (same as Title demo: SCOUT cyan, BRUISER magenta, WARLORD white)
     const enemies = [
       { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
       { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
@@ -87,7 +88,7 @@ export class Game extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ENTER', () => this.handleFire(player))
 
     this.add
-      .text(width / 2, height - 5, '320×240 4:3 CRT • REAL ART', {
+      .text(width / 2, height - 5, '320×240 4:3 CRT • REAL ART + SOUNDS', {
         fontFamily: '"VT323"',
         fontSize: '8px',
         color: '#666',
@@ -99,6 +100,7 @@ export class Game extends Phaser.Scene {
 
   private handlePick(index: number) {
     const labels = ['SCOUT', 'BRUISER', 'WARLORD']
+    this.audio.playSfx('sfx_ui_blip')
     const t = this.add.text(160, 100, `PICKED ${labels[index]}`, {
       fontFamily: '"VT323"',
       fontSize: '10px',
@@ -109,12 +111,12 @@ export class Game extends Phaser.Scene {
   }
 
   private handleFire(player: Phaser.GameObjects.Image) {
+    this.audio.playSfx('sfx_fire', { volume: 0.85 })
+    this.audio.duckMusic()
     this.cameras.main.shake(120, 0.008)
-    // Muzzle flash REAL IMAGE
     const flash = this.add.image(player.x + 14, player.y, 'muzzle_1')
     flash.setScale(0.7)
     this.time.delayedCall(80, () => flash.destroy())
-    // Shell REAL IMAGE
     const shell = this.add.image(player.x + 8, player.y, 'shell')
     shell.setScale(0.6)
     this.tweens.add({
@@ -124,9 +126,13 @@ export class Game extends Phaser.Scene {
       duration: 300,
       onComplete: () => {
         shell.destroy()
+        this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
         const exp = this.add.image(220, 70, 'explosion_small_1')
         exp.setScale(1.2)
         this.tweens.add({ targets: exp, scale: 1.8, alpha: 0, duration: 260, onComplete: () => exp.destroy() })
+        // coin ticks for win demo
+        this.audio.playSfx('sfx_win', { volume: 0.6 })
+        for (let c = 0; c < 3; c++) this.time.delayedCall(c * 80, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
       },
     })
   }

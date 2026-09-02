@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { PALETTE, PALETTE_HEX } from '../../config/palette'
+import { AudioManager } from '../systems/AudioManager'
 
 export class Title extends Phaser.Scene {
   private attractIndex = 0
@@ -9,6 +10,7 @@ export class Title extends Phaser.Scene {
   private enemyPositions: { x: number; y: number }[] = []
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
+  private audio!: AudioManager
 
   constructor() {
     super('Title')
@@ -16,17 +18,16 @@ export class Title extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
+    this.audio = new AudioManager(this)
+    this.audio.initMusic()
 
-    // ---- 1. Background: real battlefield + starfield tile ----
-    // Battlefield 320x180 CC0 sand (Kenney) — real picture, not navy flat
+    // ---- Background: real battlefield + starfield tile ----
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
     bg.setAlpha(0.95)
-    // Starfield tile 64x64 CC0 spacezanindevs — tiled overlay for parallax
     const starTile = this.add.tileSprite(width / 2, height / 2 - 20, width, height - 40, 'bg_starfield')
     starTile.setAlpha(0.35)
     starTile.setTileScale(1, 1)
-    // Deterministic white dots still for extra parallax (small)
     for (let i = 0; i < 16; i++) {
       const x = (i * 73 + 17) % width
       const y = (i * 41 + 29) % (height - 30)
@@ -46,22 +47,18 @@ export class Title extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
-    // ---- Arena: Player tank bottom-center — REAL IMAGE ----
     this.playerTank = this.add.image(160, height - 32, 'player_idle_1')
     this.playerTank.setOrigin(0.5)
-    // Scale to fit 26x14 approx (original 32x32, scale 0.8)
     this.playerTank.setScale(0.85)
-    this.playerTank.setTint(0x4ff2e3) // ensure cyan tint if needed, but image already cyan
     this.tweens.add({
       targets: this.playerTank,
-      y: 149,
+      y: height - 31,
       duration: 300,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     })
 
-    // Bunkers under enemies — REAL IMAGE bunker_intact CC0
     for (let i = 0; i < 3; i++) {
       const bx = 64 + i * 96
       const bunker = this.add.image(bx, 78, 'bunker_intact')
@@ -69,7 +66,6 @@ export class Title extends Phaser.Scene {
       bunker.setOrigin(0.5)
     }
 
-    // ---- 3 Enemy tanks in bunkers — REAL IMAGES ----
     const enemies = [
       { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
       { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
@@ -80,11 +76,9 @@ export class Title extends Phaser.Scene {
       const tank = this.add.image(e.x, e.y, e.key)
       tank.setScale(0.85)
       tank.setOrigin(0.5)
-      // Ensure sharp, no filter blur
       tank.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
       this.enemyTanks.push(tank)
 
-      // Multiplier — crisp Press Start 2P 8px, integer pos, no blur
       this.add
         .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
           fontFamily: '"Press Start 2P"',
@@ -106,7 +100,6 @@ export class Title extends Phaser.Scene {
         .setResolution(2)
     })
 
-    // ---- CRT scanline + vignette overlay ----
     const scanG = this.add.graphics()
     scanG.fillStyle(0xffffff, 0.04)
     for (let y = 0; y < height; y += 4) {
@@ -119,7 +112,6 @@ export class Title extends Phaser.Scene {
 
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
 
-    // ---- Title Modal ----
     const modalW = 220
     const modalH = 96
     const modalX = width / 2
@@ -151,7 +143,7 @@ export class Title extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11)
 
-    const audioState = this.getAudioState()
+    const state = this.audio.getState()
     const musicToggle = this.add
       .text(modalX + 78, modalY - 38, '♫', {
         fontFamily: '"VT323"',
@@ -162,7 +154,7 @@ export class Title extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(11)
-      .setAlpha(audioState.music ? 1 : 0.35)
+      .setAlpha(state.music ? 1 : 0.35)
       .setInteractive({ useHandCursor: true })
     const sfxToggle = this.add
       .text(modalX + 96, modalY - 38, '🔊', {
@@ -174,23 +166,18 @@ export class Title extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(11)
-      .setAlpha(audioState.sfx ? 1 : 0.35)
+      .setAlpha(state.sfx ? 1 : 0.35)
       .setInteractive({ useHandCursor: true })
 
-    const saveAudio = (music: boolean, sfx: boolean) => {
-      localStorage.setItem('roboStrike_audio_v1', JSON.stringify({ music, sfx }))
-    }
     musicToggle.on('pointerdown', () => {
-      const cur = JSON.parse(localStorage.getItem('roboStrike_audio_v1') || '{"music":true,"sfx":true}')
-      cur.music = !cur.music
-      saveAudio(cur.music, cur.sfx)
-      musicToggle.setAlpha(cur.music ? 1 : 0.35)
+      const on = this.audio.toggleMusic()
+      musicToggle.setAlpha(on ? 1 : 0.35)
+      this.audio.playSfx('sfx_ui_blip')
     })
     sfxToggle.on('pointerdown', () => {
-      const cur = JSON.parse(localStorage.getItem('roboStrike_audio_v1') || '{"music":true,"sfx":true}')
-      cur.sfx = !cur.sfx
-      saveAudio(cur.music, cur.sfx)
-      sfxToggle.setAlpha(cur.sfx ? 1 : 0.35)
+      const on = this.audio.toggleSfx()
+      sfxToggle.setAlpha(on ? 1 : 0.35)
+      this.audio.playSfx('sfx_ui_blip')
     })
     musicToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
     sfxToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
@@ -234,6 +221,7 @@ export class Title extends Phaser.Scene {
       if ((this as any)._starting) return
       ;(this as any)._starting = true
       if (this.attractTimer) this.attractTimer.remove()
+      this.audio.playSfx('sfx_ui_blip')
       this.cameras.main.fadeOut(500, 0, 0, 0)
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
         this.scene.start('Game')
@@ -246,20 +234,15 @@ export class Title extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
-  private getAudioState(): { music: boolean; sfx: boolean } {
-    try {
-      const raw = localStorage.getItem('roboStrike_audio_v1')
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return { music: true, sfx: true }
-  }
-
   private playAttract() {
     if ((this as any)._starting) return
     const idx = this.attractIndex % this.enemyPositions.length
     this.attractIndex++
     const target = this.enemyPositions[idx]
     const start = { x: this.playerTank.x, y: this.playerTank.y - 4 }
+
+    this.audio.playSfx('sfx_fire', { volume: 0.7 })
+    this.audio.duckMusic()
 
     this.tweens.add({
       targets: this.playerTank,
@@ -269,13 +252,11 @@ export class Title extends Phaser.Scene {
       ease: 'Quad.easeOut',
     })
 
-    // Muzzle flash — REAL IMAGE
     const flash = this.add.image(start.x + 10, start.y, 'muzzle_1')
     flash.setScale(0.6)
     flash.setDepth(5)
     this.time.delayedCall(70, () => flash.destroy())
 
-    // Shell — REAL IMAGE
     const shell = this.add.image(start.x, start.y, 'shell')
     shell.setScale(0.7)
     shell.setDepth(6)
@@ -310,11 +291,10 @@ export class Title extends Phaser.Scene {
         shell.destroy()
         trailTimer.remove()
         const enemy = this.enemyTanks[idx]
-        // Hit flash — tint white then restore
         enemy.setTint(0xffffff)
         this.time.delayedCall(80, () => enemy.clearTint())
         this.cameras.main.shake(120, 0.006)
-        // Explosion — REAL IMAGE
+        this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
         const exp = this.add.image(target.x, target.y, 'explosion_small_1')
         exp.setScale(1.2)
         exp.setDepth(7)
@@ -344,11 +324,14 @@ export class Title extends Phaser.Scene {
             onComplete: () => part.destroy(),
           })
         }
+        // Coin burst with tick sounds
+        this.audio.playSfx('sfx_win', { volume: 0.6 })
         for (let c = 0; c < 6; c++) {
           const cx = target.x + ((c * 7) % 13) - 6
           const coin = this.add.image(cx, target.y, 'coin_1')
           coin.setScale(0.6)
           coin.setDepth(8)
+          this.time.delayedCall(c * 40, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
           this.tweens.add({
             targets: coin,
             y: target.y - 18 - (c % 3) * 4,
