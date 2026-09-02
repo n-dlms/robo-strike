@@ -7,22 +7,38 @@ export class Boot extends Phaser.Scene {
   }
 
   preload() {
-    // Ensure nearest neighbor for pixel art
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
 
-    // Placeholder loading — real CC0 art will be swapped via atlas in Phase 4
-    // For scaffold we generate a tiny colored rect so build passes without assets
-    const g = this.add.graphics()
-    g.fillStyle(0x4ff2e3, 1)
-    g.fillRect(0, 0, 32, 32)
-    g.generateTexture('placeholder_tank', 32, 32)
-    g.clear()
-    g.destroy()
+    // Real CC0 art — not rectangles
+    // Tanks
+    this.load.image('player_idle_1', 'assets/raw/player_idle_1.png')
+    this.load.image('player_idle_2', 'assets/raw/player_idle_2.png')
+    this.load.image('player_recoil_1', 'assets/raw/player_recoil_1.png')
+    this.load.image('enemy1_idle_1', 'assets/raw/enemy1_idle_1.png')
+    this.load.image('enemy2_idle_1', 'assets/raw/enemy2_idle_1.png')
+    this.load.image('enemy3_idle_1', 'assets/raw/enemy3_idle_1.png')
+    // Bunkers
+    this.load.image('bunker_intact', 'assets/raw/bunker_intact.png')
+    // Backgrounds
+    this.load.image('bg_battlefield', 'assets/raw/bg_battlefield.png')
+    this.load.image('bg_starfield', 'assets/raw/bg_starfield.png')
+    // FX
+    this.load.image('shell', 'assets/raw/shell.png')
+    this.load.image('coin_1', 'assets/raw/coin_1.png')
+    this.load.image('explosion_small_1', 'assets/raw/explosion_small_1.png')
+    this.load.image('muzzle_1', 'assets/raw/muzzle_1.png')
+    // Arcade border for reference (HTML already shows, but also preload for in-canvas if needed)
+    this.load.image('arcade_gui', 'assets/arcade/oga_arcade_gui_sheet.png')
+
+    // Ensure all textures are NEAREST after load
+    this.load.on('complete', () => {
+      Object.values(this.textures.list).forEach((t: any) => {
+        if (t && t.setFilter) t.setFilter(Phaser.Textures.FilterMode.NEAREST)
+      })
+    })
   }
 
   create() {
-    // Font loading check (OFL Press Start 2P + VT323 via Google Fonts link in index.html)
-    // Add a tiny text to trigger font load
     this.add
       .text(160, 90, 'LOADING', {
         fontFamily: '"Press Start 2P"',
@@ -31,7 +47,7 @@ export class Boot extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    // Simulate font load delay then go to Title
+    // Wait for fonts + textures
     this.time.delayedCall(300, () => this.scene.start('Title'))
   }
 }

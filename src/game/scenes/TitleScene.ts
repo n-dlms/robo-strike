@@ -4,8 +4,8 @@ import { PALETTE, PALETTE_HEX } from '../../config/palette'
 export class TitleScene extends Phaser.Scene {
   private attractIndex = 0
   private attractTimer?: Phaser.Time.TimerEvent
-  private playerTank!: Phaser.GameObjects.Rectangle
-  private enemyTanks: Phaser.GameObjects.Rectangle[] = []
+  private playerTank!: Phaser.GameObjects.Image
+  private enemyTanks: Phaser.GameObjects.Image[] = []
   private enemyPositions: { x: number; y: number }[] = []
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
@@ -17,20 +17,25 @@ export class TitleScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale
 
-    // ---- 1. Background: Starfield (navy #0a1a3f base, white dots) ----
-    this.add.rectangle(width / 2, height / 2, width, height, PALETTE.navy)
-    // Deterministic starfield (no Math.random) — parallax simple: 40 dots
-    for (let i = 0; i < 40; i++) {
+    // ---- 1. Background: real battlefield + starfield tile ----
+    // Battlefield 320x180 CC0 sand (Kenney) — real picture, not navy flat
+    const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
+    bg.setDisplaySize(width, height)
+    bg.setAlpha(0.95)
+    // Starfield tile 64x64 CC0 spacezanindevs — tiled overlay for parallax
+    const starTile = this.add.tileSprite(width / 2, height / 2 - 20, width, height - 40, 'bg_starfield')
+    starTile.setAlpha(0.35)
+    starTile.setTileScale(1, 1)
+    // Deterministic white dots still for extra parallax (small)
+    for (let i = 0; i < 16; i++) {
       const x = (i * 73 + 17) % width
-      const y = (i * 41 + 29) % (height - 30) // keep above ground
-      const size = i % 3 === 0 ? 1 : 1
-      const dot = this.add.rectangle(x, y, size, size, PALETTE.white)
-      dot.setAlpha(0.6 + ((i * 7) % 4) * 0.1)
-      // subtle parallax tween for some stars
+      const y = (i * 41 + 29) % (height - 30)
+      const dot = this.add.rectangle(x, y, 1, 1, PALETTE.white)
+      dot.setAlpha(0.5 + ((i * 7) % 3) * 0.15)
       if (i % 5 === 0) {
         this.tweens.add({
           targets: dot,
-          alpha: 0.3,
+          alpha: 0.2,
           duration: 1200 + (i % 4) * 300,
           yoyo: true,
           repeat: -1,
@@ -39,13 +44,14 @@ export class TitleScene extends Phaser.Scene {
         })
       }
     }
-    // Ground line
-    this.add.rectangle(width / 2, 150, width, 2, PALETTE.outline)
+    this.add.rectangle(width / 2, 150, width, 2, PALETTE.outline).setAlpha(0.6)
 
-    // ---- Arena: Player tank bottom-center idle-bob 2 frames ----
-    this.playerTank = this.add.rectangle(160, 148, 26, 14, PALETTE.cyan)
-    this.playerTank.setStrokeStyle(1, PALETTE.outline)
-    // idle bob animation via tween (no sprite sheet yet, just y bob)
+    // ---- Arena: Player tank bottom-center — REAL IMAGE ----
+    this.playerTank = this.add.image(160, 148, 'player_idle_1')
+    this.playerTank.setOrigin(0.5)
+    // Scale to fit 26x14 approx (original 32x32, scale 0.8)
+    this.playerTank.setScale(0.85)
+    this.playerTank.setTint(0x4ff2e3) // ensure cyan tint if needed, but image already cyan
     this.tweens.add({
       targets: this.playerTank,
       y: 149,
@@ -54,28 +60,30 @@ export class TitleScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     })
-    // Player label small?
+
+    // Bunkers under enemies — REAL IMAGE bunker_intact CC0
     for (let i = 0; i < 3; i++) {
       const bx = 64 + i * 96
-      const bunker = this.add.rectangle(bx, 78, 36, 10, PALETTE.navy)
-      bunker.setStrokeStyle(1, PALETTE.outline)
+      const bunker = this.add.image(bx, 78, 'bunker_intact')
+      bunker.setScale(1.1)
+      bunker.setOrigin(0.5)
     }
 
-    // ---- 3 Enemy tanks in bunkers across top: SCOUT cyan, BRUISER magenta, WARLORD white/gray ----
+    // ---- 3 Enemy tanks in bunkers — REAL IMAGES ----
     const enemies = [
-      { x: 64, y: 66, color: PALETTE.cyan, name: 'SCOUT', mult: '×30' },
-      { x: 160, y: 66, color: PALETTE.magenta, name: 'BRUISER', mult: '×15' },
-      { x: 256, y: 66, color: PALETTE.white, name: 'WARLORD', mult: '×11' },
+      { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
+      { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
+      { x: 256, y: 66, key: 'enemy3_idle_1', name: 'WARLORD', mult: '×11' },
     ]
     this.enemyPositions = enemies.map((e) => ({ x: e.x, y: e.y }))
     enemies.forEach((e) => {
-      const tank = this.add.rectangle(e.x, e.y, 22, 14, e.color)
-      tank.setStrokeStyle(1, PALETTE.outline)
+      const tank = this.add.image(e.x, e.y, e.key)
+      tank.setScale(0.85)
+      tank.setOrigin(0.5)
       this.enemyTanks.push(tank)
 
-      // Label multiplier in Press Start 2P
       this.add
-        .text(e.x, e.y + 16, e.mult, {
+        .text(e.x, e.y + 18, e.mult, {
           fontFamily: '"Press Start 2P"',
           fontSize: '7px',
           color: e.mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
@@ -85,34 +93,28 @@ export class TitleScene extends Phaser.Scene {
         .setOrigin(0.5)
 
       this.add
-        .text(e.x, e.y - 14, e.name, {
+        .text(e.x, e.y - 16, e.name, {
           fontFamily: '"VT323"',
-          fontSize: '8px',
+          fontSize: '9px',
           color: PALETTE_HEX.white,
         })
         .setOrigin(0.5)
     })
 
-    // ---- CRT scanline + vignette overlay (same as game scene) ----
-    // Scanline as graphics overlay (in-scene, not just HTML)
+    // ---- CRT scanline + vignette overlay ----
     const scanG = this.add.graphics()
     scanG.fillStyle(0xffffff, 0.04)
     for (let y = 0; y < height; y += 4) {
       scanG.fillRect(0, y, width, 1)
     }
     scanG.setDepth(90)
-    // Vignette
-    const vignette = this.add.graphics()
-    vignette.fillStyle(0x000000, 0)
-    // subtle vignette via rectangle with alpha gradient not perfect, use overlay rect
     const vRect = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0)
     vRect.setAlpha(0.15)
     vRect.setDepth(90)
 
-    // Ensure NEAREST
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
 
-    // ---- 3. Title Modal (keep what works) ----
+    // ---- Title Modal ----
     const modalW = 220
     const modalH = 96
     const modalX = width / 2
@@ -144,7 +146,6 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11)
 
-    // Audio toggles (persisted)
     const audioState = this.getAudioState()
     const musicToggle = this.add
       .text(modalX + 78, modalY - 38, '♫', {
@@ -179,7 +180,6 @@ export class TitleScene extends Phaser.Scene {
       cur.music = !cur.music
       saveAudio(cur.music, cur.sfx)
       musicToggle.setAlpha(cur.music ? 1 : 0.35)
-      // block propagation so not to trigger start
     })
     sfxToggle.on('pointerdown', () => {
       const cur = JSON.parse(localStorage.getItem('roboStrike_audio_v1') || '{"music":true,"sfx":true}')
@@ -187,11 +187,9 @@ export class TitleScene extends Phaser.Scene {
       saveAudio(cur.music, cur.sfx)
       sfxToggle.setAlpha(cur.sfx ? 1 : 0.35)
     })
-    // Stop propagation for toggles so click on toggle doesn't start game
     musicToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
     sfxToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
 
-    // PRESS FIRE TO START blink 1Hz (500ms on/off)
     this.startText = this.add
       .text(modalX, modalY + 12, 'PRESS FIRE TO START', {
         fontFamily: '"Press Start 2P"',
@@ -220,21 +218,14 @@ export class TitleScene extends Phaser.Scene {
       .setDepth(11)
       .setAlpha(0.65)
 
-    // Verify widget embed is official — widget is in index.html <script async src="https://jam.chain.wtf/widget.js">
-    // No hand-made badge here; if needed, we would delete it. So nothing to add.
-
-    // ---- 2. Attract Loop every 4s (deterministic, no Math.random) ----
     this.attractTimer = this.time.addEvent({
       delay: 4000,
       loop: true,
       callback: () => this.playAttract(),
     })
-    // Play first attract after 1200ms so player sees title first
     this.time.delayedCall(1200, () => this.playAttract())
 
-    // ---- 4. Input Handling ----
     const startGame = () => {
-      // prevent double trigger
       if ((this as any)._starting) return
       ;(this as any)._starting = true
       if (this.attractTimer) this.attractTimer.remove()
@@ -244,12 +235,9 @@ export class TitleScene extends Phaser.Scene {
       })
     }
 
-    // Click/tap anywhere
     this.input.on('pointerdown', startGame)
-    // Keyboard
     this.input.keyboard?.on('keydown-SPACE', startGame)
     this.input.keyboard?.on('keydown-ENTER', startGame)
-    // Also F key as FIRE
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
@@ -268,7 +256,6 @@ export class TitleScene extends Phaser.Scene {
     const target = this.enemyPositions[idx]
     const start = { x: this.playerTank.x, y: this.playerTank.y - 4 }
 
-    // Tank recoil: short y kick
     this.tweens.add({
       targets: this.playerTank,
       y: start.y - 3,
@@ -277,17 +264,16 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
     })
 
-    // Muzzle flash at player
-    const flash = this.add.rectangle(start.x + 8, start.y, 8, 4, PALETTE.white)
+    // Muzzle flash — REAL IMAGE
+    const flash = this.add.image(start.x + 10, start.y, 'muzzle_1')
+    flash.setScale(0.6)
     flash.setDepth(5)
     this.time.delayedCall(70, () => flash.destroy())
 
-    // Shell
-    const shell = this.add.rectangle(start.x, start.y, 4, 2, PALETTE.yellow)
-    shell.setStrokeStyle(1, PALETTE.outline)
+    // Shell — REAL IMAGE
+    const shell = this.add.image(start.x, start.y, 'shell')
+    shell.setScale(0.7)
     shell.setDepth(6)
-    // Trail
-    const trailEmitters: Phaser.GameObjects.Rectangle[] = []
     const trailTimer = this.time.addEvent({
       delay: 16,
       loop: true,
@@ -296,13 +282,13 @@ export class TitleScene extends Phaser.Scene {
           trailTimer.remove()
           return
         }
-        const t = this.add.rectangle(shell.x, shell.y, 2, 2, PALETTE.yellow)
+        const t = this.add.image(shell.x, shell.y, 'shell')
+        t.setScale(0.25)
         t.setAlpha(0.7)
-        trailEmitters.push(t)
         this.tweens.add({
           targets: t,
           alpha: 0,
-          scale: 0.5,
+          scale: 0.2,
           duration: 220,
           onComplete: () => t.destroy(),
         })
@@ -318,29 +304,25 @@ export class TitleScene extends Phaser.Scene {
       onComplete: () => {
         shell.destroy()
         trailTimer.remove()
-        // Hit flash on enemy
         const enemy = this.enemyTanks[idx]
-        const origColor = enemy.fillColor
-        enemy.setFillStyle(PALETTE.white, 1)
-        this.time.delayedCall(80, () => enemy.setFillStyle(origColor, 1))
-        // Shake
+        // Hit flash — tint white then restore
+        enemy.setTint(0xffffff)
+        this.time.delayedCall(80, () => enemy.clearTint())
         this.cameras.main.shake(120, 0.006)
-        // Explosion: 4-frame small flash + expanding circle
-        const exp = this.add.circle(target.x, target.y, 4, PALETTE.yellow)
-        exp.setStrokeStyle(1, PALETTE.outline)
+        // Explosion — REAL IMAGE
+        const exp = this.add.image(target.x, target.y, 'explosion_small_1')
+        exp.setScale(1.2)
         exp.setDepth(7)
         this.tweens.add({
           targets: exp,
-          radius: 18,
+          scale: 1.8,
           alpha: 0,
           duration: 260,
           ease: 'Quad.easeOut',
-          onUpdate: () => exp.setRadius(exp.radius),
           onComplete: () => exp.destroy(),
         })
-        // Additional explosion particles (4 small squares)
         for (let p = 0; p < 4; p++) {
-          const angle = (p * 90) * (Math.PI / 180) // deterministic angles 0,90,180,270 — no Math.random, use p
+          const angle = (p * 90) * (Math.PI / 180)
           const dist = 10 + p * 2
           const px = target.x + Math.cos(angle) * dist
           const py = target.y + Math.sin(angle) * dist
@@ -357,11 +339,10 @@ export class TitleScene extends Phaser.Scene {
             onComplete: () => part.destroy(),
           })
         }
-        // Coin burst: 6 coins rising
         for (let c = 0; c < 6; c++) {
-          const cx = target.x + ((c * 7) % 13) - 6 // deterministic offset, no Math.random
-          const coin = this.add.rectangle(cx, target.y, 4, 4, PALETTE.yellow)
-          coin.setStrokeStyle(1, PALETTE.outline)
+          const cx = target.x + ((c * 7) % 13) - 6
+          const coin = this.add.image(cx, target.y, 'coin_1')
+          coin.setScale(0.6)
           coin.setDepth(8)
           this.tweens.add({
             targets: coin,
