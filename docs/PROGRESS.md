@@ -16,7 +16,7 @@
 | 0 | Workspace + Memory | DONE | 2026-09-01 | stage-0 | git init, structure, skeletons |
 | 1 | Research (A-E subagents) | DONE | 2026-09-01 | — | 5 subagents: sdk 1233L, assets 761L, audio 486L, competitors 4 entries, math 724L, hosting-promo 644L; 20 Discord Qs |
 | 2 | Consolidation + Asset Download | DONE | 2026-09-01 | stage-2 | PLAYBOOK merged (decisions with reasons), ASSET_INVENTORY verified (27 candidates, 2 FAIL correctly rejected), placeholders: 66 sprites raw + atlas 23KB JSON, 11 wavs + 11 oggs + loop 50.5s 472KB ogg, palette locked |
-| 3-1 | Scaffold (Vite+TS+Phaser) | TODO | - | - | 320×180, palette, fonts |
+| 3-1 | Scaffold (Vite+TS+Phaser) | DONE | 2026-09-02 | phase-1 | Vite 5.4.21 + TS 5.5 + Phaser 3.80 + vitest 2.1, 320×180 NEAREST, palette #0a1a3f…#1a1a1a, Press Start 2P/VT323 OFL, Boot/Title/Game scenes, arcade border 484×258 + marquee ROBO STRIKE, build 1.48M (341K gz) pass, palette test 2/2 pass |
 | 3-2 | Casino Brain (paytables + VRF mapper + RTP proof) | TODO | - | - | sim 1M, no Math.random |
 | 3-3 | SDK Integration (contract+bridge+manifest) | TODO | - | - | simulator 20x round-trip |
 | 3-4 | Presentation (state machine + juice) | TODO | - | - | no manual needed |
@@ -52,6 +52,11 @@
   - All research files persisted docs/research/*.md (5 files, 3000L+)
 - **Next:** Stage 3 Phase 1 scaffold — Vite+TS+Phaser 320×180, palette constants, fonts, scene skeleton (DO NOT start until stage-2 commit)
 - **Blockers:** Kenney ZIPs require manual browser click "Continue without donating" to fetch actual bytes (HTML 200 verified, ZIP not directly curlable) — placeholders in place, real sheets will replace before Phase 4. Real jsfxr/Bfxr exports & BeepBox loop export will replace ffmpeg placeholders in Phase 4/5 — filenames stable.
+
+### After Phase 1 (2026-09-02)
+- **Done:** Vite 5.4.21 + TS 5.5.4 + Phaser 3.80.0 + vitest 2.1.8 scaffold via `phaserjs/template-vite-ts` pattern; `320×180` `pixelArt:true` `FilterMode.NEAREST` `Scale.NONE`; palette `src/config/palette.ts` `#0a1a3f…#1a1a1a` + `INTERNAL_WIDTH/HEIGHT`; fonts `Press Start 2P` + `VT323` OFL via Google Fonts link in `index.html`; scenes `Boot.ts` (placeholder tank + font load → Title), `Title.ts` (ROBO STRIKE + arcade border 484×258 + marquee + music/sfx toggles `♫/🔊` + FIRE/Space/Enter → Game), `Game.ts` (320×180 battlefield + 3 tanks SCOUT/BRUISER/WARLORD + bet + FIRE + shake); `index.html` arcade-wrap `900px` border + `320×180` screen + CRT `scanline+vignette`; `vite.config.ts` + `tsconfig.json`; `npm run build` **pass** `1.48M (341K gz)` in 13.23s, `npm test` **2/2 pass** `palette.test.ts`.
+- **Next:** Phase 2 Casino Brain — `src/config/paytables.ts` single source + BigInt mapper + `scripts/simulate-rtp.ts` 1M + vitest, no Math.random, exit non-zero outside 93-98.
+- **Blockers:** None — scaffold is standalone, no SDK yet, no heavy deps, `assets/art` + `arcade` not yet wired (Phase 4), `RTP` math still in `docs/MATH.md` will be code-ified.
 
 ## Decisions Log (append-only)
 - 2026-09-01: Locked game spec to SECTION 2 — no scope creep.
