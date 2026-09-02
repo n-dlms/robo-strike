@@ -9,14 +9,23 @@ export class Boot extends Phaser.Scene {
   preload() {
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
 
-    // Real CC0 art — not rectangles
-    // Tanks
+    // Real CC0 art — not rectangles — now with separate base+turret for AI aiming
+    // Tanks — composite (legacy) + separate base/turret for AI
     this.load.image('player_idle_1', 'assets/raw/player_idle_1.png')
     this.load.image('player_idle_2', 'assets/raw/player_idle_2.png')
     this.load.image('player_recoil_1', 'assets/raw/player_recoil_1.png')
     this.load.image('enemy1_idle_1', 'assets/raw/enemy1_idle_1.png')
     this.load.image('enemy2_idle_1', 'assets/raw/enemy2_idle_1.png')
     this.load.image('enemy3_idle_1', 'assets/raw/enemy3_idle_1.png')
+    // AI turrets — separate for aiming
+    this.load.image('player_base', 'assets/raw/player_base.png')
+    this.load.image('player_turret', 'assets/raw/player_turret.png')
+    this.load.image('enemy1_base', 'assets/raw/enemy1_base.png')
+    this.load.image('enemy1_turret', 'assets/raw/enemy1_turret.png')
+    this.load.image('enemy2_base', 'assets/raw/enemy2_base.png')
+    this.load.image('enemy2_turret', 'assets/raw/enemy2_turret.png')
+    this.load.image('enemy3_base', 'assets/raw/enemy3_base.png')
+    this.load.image('enemy3_turret', 'assets/raw/enemy3_turret.png')
     // Bunkers
     this.load.image('bunker_intact', 'assets/raw/bunker_intact.png')
     // Backgrounds

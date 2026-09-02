@@ -5,8 +5,10 @@ import { AudioManager } from '../systems/AudioManager'
 export class Title extends Phaser.Scene {
   private attractIndex = 0
   private attractTimer?: Phaser.Time.TimerEvent
-  private playerTank!: Phaser.GameObjects.Image
-  private enemyTanks: Phaser.GameObjects.Image[] = []
+  private playerBase!: Phaser.GameObjects.Image
+  private playerTurret!: Phaser.GameObjects.Image
+  private enemyBases: Phaser.GameObjects.Image[] = []
+  private enemyTurrets: Phaser.GameObjects.Image[] = []
   private enemyPositions: { x: number; y: number }[] = []
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
@@ -21,7 +23,6 @@ export class Title extends Phaser.Scene {
     this.audio = new AudioManager(this)
     this.audio.initMusic()
 
-    // ---- Background: real battlefield + starfield tile ----
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
     bg.setAlpha(0.95)
@@ -47,11 +48,14 @@ export class Title extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
-    this.playerTank = this.add.image(160, height - 32, 'player_idle_1')
-    this.playerTank.setOrigin(0.5)
-    this.playerTank.setScale(0.85)
+    // Player — base + turret (turret will aim at current target)
+    this.playerBase = this.add.image(160, height - 32, 'player_base')
+    this.playerBase.setScale(0.9)
+    this.playerTurret = this.add.image(160, height - 32, 'player_turret')
+    this.playerTurret.setScale(0.9)
+    this.playerTurret.setOrigin(0.5, 0.7)
     this.tweens.add({
-      targets: this.playerTank,
+      targets: [this.playerBase, this.playerTurret],
       y: height - 31,
       duration: 300,
       yoyo: true,
@@ -67,17 +71,19 @@ export class Title extends Phaser.Scene {
     }
 
     const enemies = [
-      { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
-      { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
-      { x: 256, y: 66, key: 'enemy3_idle_1', name: 'WARLORD', mult: '×11' },
+      { x: 64, y: 66, base: 'enemy1_base', turret: 'enemy1_turret', name: 'SCOUT', mult: '×30' },
+      { x: 160, y: 66, base: 'enemy2_base', turret: 'enemy2_turret', name: 'BRUISER', mult: '×15' },
+      { x: 256, y: 66, base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
     ]
     this.enemyPositions = enemies.map((e) => ({ x: e.x, y: e.y }))
     enemies.forEach((e) => {
-      const tank = this.add.image(e.x, e.y, e.key)
-      tank.setScale(0.85)
-      tank.setOrigin(0.5)
-      tank.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
-      this.enemyTanks.push(tank)
+      const base = this.add.image(e.x, e.y, e.base)
+      base.setScale(0.85)
+      const turret = this.add.image(e.x, e.y, e.turret)
+      turret.setScale(0.85)
+      turret.setOrigin(0.5, 0.7)
+      this.enemyBases.push(base)
+      this.enemyTurrets.push(turret)
 
       this.add
         .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
@@ -181,7 +187,6 @@ export class Title extends Phaser.Scene {
     })
     musicToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
     sfxToggle.on('pointerdown', (_p: any, _x: any, _y: any, e: any) => e?.stopPropagation?.())
-    // Keys M/S also work on title
     this.input.keyboard?.on('keydown-M', () => {
       const on = this.audio.toggleMusic()
       musicToggle.setAlpha(on ? 1 : 0.35)
@@ -243,18 +248,34 @@ export class Title extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', startGame)
   }
 
+  update() {
+    // AI tanks aim at player (visual only, VRF still decides)
+    const px = this.playerBase.x
+    const py = this.playerBase.y
+    this.enemyTurrets.forEach((turret) => {
+      const angle = Phaser.Math.Angle.Between(turret.x, turret.y, px, py)
+      // turret sprite points up (-90deg), so add 90deg
+      turret.rotation = angle + Math.PI / 2
+    })
+    // Player turret aims at current attract target (cycle)
+    const idx = this.attractIndex % this.enemyPositions.length
+    const target = this.enemyPositions[idx]
+    const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
+    this.playerTurret.rotation = pAngle + Math.PI / 2
+  }
+
   private playAttract() {
     if ((this as any)._starting) return
     const idx = this.attractIndex % this.enemyPositions.length
     this.attractIndex++
     const target = this.enemyPositions[idx]
-    const start = { x: this.playerTank.x, y: this.playerTank.y - 4 }
+    const start = { x: this.playerBase.x, y: this.playerBase.y - 4 }
 
     this.audio.playSfx('sfx_fire', { volume: 0.7 })
     this.audio.duckMusic()
 
     this.tweens.add({
-      targets: this.playerTank,
+      targets: [this.playerBase, this.playerTurret],
       y: start.y - 3,
       duration: 60,
       yoyo: true,
@@ -299,9 +320,14 @@ export class Title extends Phaser.Scene {
       onComplete: () => {
         shell.destroy()
         trailTimer.remove()
-        const enemy = this.enemyTanks[idx]
-        enemy.setTint(0xffffff)
-        this.time.delayedCall(80, () => enemy.clearTint())
+        const enemyBase = this.enemyBases[idx]
+        const enemyTurret = this.enemyTurrets[idx]
+        enemyBase.setTint(0xffffff)
+        enemyTurret.setTint(0xffffff)
+        this.time.delayedCall(80, () => {
+          enemyBase.clearTint()
+          enemyTurret.clearTint()
+        })
         this.cameras.main.shake(120, 0.006)
         this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
         const exp = this.add.image(target.x, target.y, 'explosion_small_1')
@@ -333,7 +359,6 @@ export class Title extends Phaser.Scene {
             onComplete: () => part.destroy(),
           })
         }
-        // Coin burst with tick sounds
         this.audio.playSfx('sfx_win', { volume: 0.6 })
         for (let c = 0; c < 6; c++) {
           const cx = target.x + ((c * 7) % 13) - 6

@@ -4,6 +4,10 @@ import { AudioManager } from '../systems/AudioManager'
 
 export class Game extends Phaser.Scene {
   private audio!: AudioManager
+  private playerBase!: Phaser.GameObjects.Image
+  private playerTurret!: Phaser.GameObjects.Image
+  private enemyBases: Phaser.GameObjects.Image[] = []
+  private enemyTurrets: Phaser.GameObjects.Image[] = []
   constructor() {
     super('Game')
   }
@@ -19,26 +23,32 @@ export class Game extends Phaser.Scene {
 
     this.add.rectangle(width / 2, height - 30, width, 2, 0x1a1a1a).setAlpha(0.5)
 
-    const player = this.add.image(60, height - 70, 'player_idle_1')
-    player.setScale(0.85)
-    player.setOrigin(0.5)
-    player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
-    player.setTint(0x4ff2e3)
+    this.playerBase = this.add.image(60, height - 70, 'player_base')
+    this.playerBase.setScale(0.85)
+    this.playerTurret = this.add.image(60, height - 70, 'player_turret')
+    this.playerTurret.setScale(0.85)
+    this.playerTurret.setOrigin(0.5, 0.7)
 
     const enemies = [
-      { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
-      { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
-      { x: 256, y: 66, key: 'enemy3_idle_1', name: 'WARLORD', mult: '×11' },
+      { x: 64, y: 66, base: 'enemy1_base', turret: 'enemy1_turret', name: 'SCOUT', mult: '×30' },
+      { x: 160, y: 66, base: 'enemy2_base', turret: 'enemy2_turret', name: 'BRUISER', mult: '×15' },
+      { x: 256, y: 66, base: 'enemy3_base', turret: 'enemy3_turret', name: 'WARLORD', mult: '×11' },
     ]
 
     enemies.forEach((e, idx) => {
       this.add.image(e.x, e.y + 10, 'bunker_intact').setScale(0.9).setOrigin(0.5).setDepth(-1)
-      const tank = this.add.image(e.x, e.y, e.key)
-      tank.setScale(0.85)
-      tank.setOrigin(0.5)
-      tank.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
-      tank.setInteractive({ useHandCursor: true })
-      tank.on('pointerdown', () => this.handlePick(idx))
+      const base = this.add.image(e.x, e.y, e.base)
+      base.setScale(0.85)
+      const turret = this.add.image(e.x, e.y, e.turret)
+      turret.setScale(0.85)
+      turret.setOrigin(0.5, 0.7)
+      this.enemyBases.push(base)
+      this.enemyTurrets.push(turret)
+      base.setInteractive({ useHandCursor: true })
+      turret.setInteractive({ useHandCursor: true })
+      const pick = () => this.handlePick(idx)
+      base.on('pointerdown', pick)
+      turret.on('pointerdown', pick)
 
       this.add
         .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
@@ -71,7 +81,7 @@ export class Game extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
 
-    // Audio toggles — also during gameplay (not only start screen)
+    // Audio toggles during gameplay
     const gState = this.audio.getState()
     const gMusic = this.add
       .text(width - 36, 14, '♫', {
@@ -107,7 +117,6 @@ export class Game extends Phaser.Scene {
       gSfx.setAlpha(on ? 1 : 0.35)
       this.audio.playSfx('sfx_ui_blip')
     })
-    // Keys M/S also toggle during gameplay
     this.input.keyboard?.on('keydown-M', () => {
       const on = this.audio.toggleMusic()
       gMusic.setAlpha(on ? 1 : 0.35)
@@ -128,13 +137,13 @@ export class Game extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
 
-    fireBtn.on('pointerdown', () => this.handleFire(player))
+    fireBtn.on('pointerdown', () => this.handleFire())
 
-    this.input.keyboard?.on('keydown-SPACE', () => this.handleFire(player))
-    this.input.keyboard?.on('keydown-ENTER', () => this.handleFire(player))
+    this.input.keyboard?.on('keydown-SPACE', () => this.handleFire())
+    this.input.keyboard?.on('keydown-ENTER', () => this.handleFire())
 
     this.add
-      .text(width / 2, height - 5, '320×240 4:3 CRT • REAL ART + SOUNDS', {
+      .text(width / 2, height - 5, '320×240 4:3 CRT • AI TANKS AIM • REAL ART + SOUNDS', {
         fontFamily: '"VT323"',
         fontSize: '8px',
         color: '#666',
@@ -144,9 +153,31 @@ export class Game extends Phaser.Scene {
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
   }
 
+  update() {
+    // AI: enemy turrets aim at player
+    if (!this.playerBase) return
+    const px = this.playerBase.x
+    const py = this.playerBase.y
+    this.enemyTurrets.forEach((turret) => {
+      const angle = Phaser.Math.Angle.Between(turret.x, turret.y, px, py)
+      turret.rotation = angle + Math.PI / 2
+    })
+    // Player turret aims at closest enemy (or mouse if over). For demo, aim at center enemy
+    if (this.enemyTurrets[1]) {
+      const tx = this.enemyTurrets[1].x
+      const ty = this.enemyTurrets[1].y
+      const pAngle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, tx, ty)
+      this.playerTurret.rotation = pAngle + Math.PI / 2
+    }
+  }
+
   private handlePick(index: number) {
     const labels = ['SCOUT', 'BRUISER', 'WARLORD']
     this.audio.playSfx('sfx_ui_blip')
+    // Player turret snaps to picked enemy visually
+    const target = this.enemyTurrets[index]
+    const angle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.x, target.y)
+    this.tweens.add({ targets: this.playerTurret, rotation: angle + Math.PI / 2, duration: 180, ease: 'Quad.easeOut' })
     const t = this.add.text(160, 100, `PICKED ${labels[index]}`, {
       fontFamily: '"VT323"',
       fontSize: '10px',
@@ -156,27 +187,30 @@ export class Game extends Phaser.Scene {
     this.tweens.add({ targets: t, alpha: 0, duration: 800, onComplete: () => t.destroy() })
   }
 
-  private handleFire(player: Phaser.GameObjects.Image) {
+  private handleFire() {
     this.audio.playSfx('sfx_fire', { volume: 0.85 })
     this.audio.duckMusic()
     this.cameras.main.shake(120, 0.008)
-    const flash = this.add.image(player.x + 14, player.y, 'muzzle_1')
+    // Recoil on base+turret
+    this.tweens.add({ targets: [this.playerBase, this.playerTurret], y: this.playerBase.y - 2, duration: 60, yoyo: true, ease: 'Quad.easeOut' })
+    const flash = this.add.image(this.playerTurret.x, this.playerTurret.y - 10, 'muzzle_1')
     flash.setScale(0.7)
     this.time.delayedCall(80, () => flash.destroy())
-    const shell = this.add.image(player.x + 8, player.y, 'shell')
+    const shell = this.add.image(this.playerTurret.x, this.playerTurret.y - 8, 'shell')
     shell.setScale(0.6)
+    // Aim shell at middle enemy for demo
+    const target = this.enemyTurrets[1]
     this.tweens.add({
       targets: shell,
-      x: 220,
-      y: 70,
+      x: target.x,
+      y: target.y,
       duration: 300,
       onComplete: () => {
         shell.destroy()
         this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
-        const exp = this.add.image(220, 70, 'explosion_small_1')
+        const exp = this.add.image(target.x, target.y, 'explosion_small_1')
         exp.setScale(1.2)
         this.tweens.add({ targets: exp, scale: 1.8, alpha: 0, duration: 260, onComplete: () => exp.destroy() })
-        // coin ticks for win demo
         this.audio.playSfx('sfx_win', { volume: 0.6 })
         for (let c = 0; c < 3; c++) this.time.delayedCall(c * 80, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
       },
