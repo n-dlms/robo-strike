@@ -123,9 +123,8 @@ export class Scout {
     const desired = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY) + Math.PI / 2
     const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
     if (Math.abs(diff) > 0.45) return
-    // Range guard — don't fire if player far outside arena (documents intent, arena max ~360)
+    // Range guard — allow firing at any distance so shell can reach border; only reject point-blank
     const dist = Phaser.Math.Distance.Between(this.turret.x, this.turret.y, playerX, playerY)
-    if (dist > 360) return
     if (dist < 18) return
 
     // Claim global slot immediately so other bots stagger
@@ -193,6 +192,47 @@ export class Scout {
     const destX = playerX
     const destY = playerY
 
+    // Compute extended border target: ray from tip through player to screen edge (so miss shells reach border)
+    const w = (scene.scale as any)?.width ?? 320
+    const h = (scene.scale as any)?.height ?? 240
+    const dx = destX - tip.x
+    const dy = destY - tip.y
+    let borderX = destX
+    let borderY = destY
+    if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+      let bestT = Infinity
+      if (Math.abs(dx) > 0.001) {
+        const t1 = (0 - tip.x) / dx
+        const t2 = (w - tip.x) / dx
+        if (t1 > 0.001) {
+          const y = tip.y + t1 * dy
+          if (y >= 0 && y <= h && t1 < bestT) bestT = t1
+        }
+        if (t2 > 0.001) {
+          const y = tip.y + t2 * dy
+          if (y >= 0 && y <= h && t2 < bestT) bestT = t2
+        }
+      }
+      if (Math.abs(dy) > 0.001) {
+        const t3 = (0 - tip.y) / dy
+        const t4 = (h - tip.y) / dy
+        if (t3 > 0.001) {
+          const x = tip.x + t3 * dx
+          if (x >= 0 && x <= w && t3 < bestT) bestT = t3
+        }
+        if (t4 > 0.001) {
+          const x = tip.x + t4 * dx
+          if (x >= 0 && x <= w && t4 < bestT) bestT = t4
+        }
+      }
+      if (bestT !== Infinity) {
+        borderX = tip.x + bestT * dx
+        borderY = tip.y + bestT * dy
+        borderX = Phaser.Math.Clamp(borderX, 0, w)
+        borderY = Phaser.Math.Clamp(borderY, 0, h)
+      }
+    }
+
     // trail — cosmetic, not VRF
     const trailEv = scene.time.addEvent({
       delay: 16,
@@ -216,19 +256,25 @@ export class Scout {
       },
     })
 
+    const baseDuration = 360
+    // First leg: tip -> predicted player pos
     scene.tweens.add({
       targets: shell,
       x: destX,
       y: destY,
-      duration: 360,
+      duration: baseDuration,
       ease: 'Linear',
       onComplete: () => {
-        shell.destroy()
-        trailEv.remove()
         const gameAny: any = scene as any
-        if (gameAny.isGameOver) return
-        // Invulnerability check — if player i-framed, show shield puff, no damage
+        if (gameAny.isGameOver) {
+          shell.destroy()
+          trailEv.remove()
+          return
+        }
+        // Invulnerability check — if player i-framed, show shield puff at player, shell stops (blocked hit)
         if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+          shell.destroy()
+          trailEv.remove()
           const puff = scene.add.image(destX, destY, 'explosion_small_1')
           puff.setScale(0.55)
           puff.setAlpha(0.45)
@@ -237,22 +283,41 @@ export class Scout {
           scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
           return
         }
-        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss
+        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss: continue to border
         const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
           if (actualDist > 38) {
-            const miss = scene.add.image(destX, destY, 'explosion_small_1')
-            miss.setScale(0.5)
-            miss.setAlpha(0.35)
-            miss.setTint(0xaaaaaa)
-            miss.setDepth(13)
-            scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
-            if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            // Miss — shell continues to border edge instead of vanishing at player
+            const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
+            const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
+            const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
+            let extraDuration = speed > 0 ? Math.round(remaining / speed) : 240
+            extraDuration = Phaser.Math.Clamp(extraDuration, 80, 700)
+            scene.tweens.add({
+              targets: shell,
+              x: borderX,
+              y: borderY,
+              duration: extraDuration,
+              ease: 'Linear',
+              onComplete: () => {
+                shell.destroy()
+                trailEv.remove()
+                const miss = scene.add.image(borderX, borderY, 'explosion_small_1')
+                miss.setScale(0.5)
+                miss.setAlpha(0.35)
+                miss.setTint(0xaaaaaa)
+                miss.setDepth(13)
+                scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+                if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+              },
+            })
             return
           }
         }
-        // Hit — full effects
+        // Hit — full effects at player
+        shell.destroy()
+        trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })
         scene.cameras.main.shake(70, 0.004)
         const exp = scene.add.image(destX, destY, 'explosion_small_1')

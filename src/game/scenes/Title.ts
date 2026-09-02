@@ -273,6 +273,27 @@ export class Title extends Phaser.Scene {
         }
       }
     }
+    // Player collision — enemies cannot pass through player (minDist 28, push enemy away, player immovable)
+    const playerMinDist = 28
+    for (const bot of this.bots as any[]) {
+      const d = Phaser.Math.Distance.Between((bot as any).base.x, (bot as any).base.y, this.playerBase.x, this.playerBase.y)
+      if (d < playerMinDist && d > 0.1) {
+        const angle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, (bot as any).base.x, (bot as any).base.y)
+        const push = playerMinDist - d
+        ;(bot as any).base.x += Math.cos(angle) * push
+        ;(bot as any).base.y += Math.sin(angle) * push
+        ;(bot as any).turret.x = (bot as any).base.x
+        ;(bot as any).turret.y = (bot as any).base.y
+      }
+    }
+    // Keep bots clamped
+    const { width, height } = this.scale as any
+    for (const bot of this.bots as any[]) {
+      ;(bot as any).base.x = Phaser.Math.Clamp((bot as any).base.x, 24, width - 24)
+      ;(bot as any).base.y = Phaser.Math.Clamp((bot as any).base.y, 30, height - 40)
+      ;(bot as any).turret.x = (bot as any).base.x
+      ;(bot as any).turret.y = (bot as any).base.y
+    }
     // Player barrel auto-detects closest bot (no mouse needed, casino auto-aim)
     let closest: any = null
     let cDist = Infinity

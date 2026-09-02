@@ -288,12 +288,29 @@ export class Game extends Phaser.Scene {
         }
       }
     }
+    // Player collision — enemies cannot pass through player (minDist 28, push enemy away, player immovable)
+    const playerMinDist = 28
+    for (const bot of this.bots as any[]) {
+      if ((bot as any).alive === false) continue
+      const d = Phaser.Math.Distance.Between(bot.base.x, bot.base.y, this.playerBase.x, this.playerBase.y)
+      if (d < playerMinDist && d > 0.1) {
+        const angle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, bot.base.x, bot.base.y)
+        const push = playerMinDist - d
+        bot.base.x += Math.cos(angle) * push
+        bot.base.y += Math.sin(angle) * push
+        bot.turret.x = bot.base.x
+        bot.turret.y = bot.base.y
+      }
+    }
     // Keep bots inside free space — wander anywhere on free space
     this.bots.forEach((b: any) => {
       b.base.x = Phaser.Math.Clamp(b.base.x, 24, width - 24)
       b.base.y = Phaser.Math.Clamp(b.base.y, 30, height - 40)
       b.turret.x = b.base.x; b.turret.y = b.base.y
     })
+    // Also clamp player-tracked turret after push (player stays immovable, but keep synced)
+    this.playerTurret.x = this.playerBase.x
+    this.playerTurret.y = this.playerBase.y
     // Keep player health bar following player (40x4, larger than bots 24x3)
     this.updatePlayerHealthBar()
 

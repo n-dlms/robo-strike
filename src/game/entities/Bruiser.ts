@@ -108,7 +108,6 @@ export class Bruiser {
     const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
     if (Math.abs(diff) > 0.55) return
     const dist = Phaser.Math.Distance.Between(this.turret.x, this.turret.y, playerX, playerY)
-    if (dist > 360) return
     if (dist < 18) return
 
     if (typeof gameAny.notifyEnemyFired === 'function') gameAny.notifyEnemyFired(now)
@@ -165,6 +164,46 @@ export class Bruiser {
     shell.setDepth(12)
     const destX = playerX
     const destY = playerY
+    // Extended border target: ray from tip through player to screen edge
+    const w = (scene.scale as any)?.width ?? 320
+    const h = (scene.scale as any)?.height ?? 240
+    const dx = destX - tip.x
+    const dy = destY - tip.y
+    let borderX = destX
+    let borderY = destY
+    if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+      let bestT = Infinity
+      if (Math.abs(dx) > 0.001) {
+        const t1 = (0 - tip.x) / dx
+        const t2 = (w - tip.x) / dx
+        if (t1 > 0.001) {
+          const y = tip.y + t1 * dy
+          if (y >= 0 && y <= h && t1 < bestT) bestT = t1
+        }
+        if (t2 > 0.001) {
+          const y = tip.y + t2 * dy
+          if (y >= 0 && y <= h && t2 < bestT) bestT = t2
+        }
+      }
+      if (Math.abs(dy) > 0.001) {
+        const t3 = (0 - tip.y) / dy
+        const t4 = (h - tip.y) / dy
+        if (t3 > 0.001) {
+          const x = tip.x + t3 * dx
+          if (x >= 0 && x <= w && t3 < bestT) bestT = t3
+        }
+        if (t4 > 0.001) {
+          const x = tip.x + t4 * dx
+          if (x >= 0 && x <= w && t4 < bestT) bestT = t4
+        }
+      }
+      if (bestT !== Infinity) {
+        borderX = tip.x + bestT * dx
+        borderY = tip.y + bestT * dy
+        borderX = Phaser.Math.Clamp(borderX, 0, w)
+        borderY = Phaser.Math.Clamp(borderY, 0, h)
+      }
+    }
     const trailEv = scene.time.addEvent({
       delay: 18,
       loop: true,
@@ -177,18 +216,23 @@ export class Bruiser {
         scene.tweens.add({ targets: t, alpha: 0, scale: 0.14, duration: 170, onComplete: () => t.destroy() })
       },
     })
+    const baseDuration = 420
     scene.tweens.add({
       targets: shell,
       x: destX,
       y: destY,
-      duration: 420,
+      duration: baseDuration,
       ease: 'Linear',
       onComplete: () => {
-        shell.destroy()
-        trailEv.remove()
         const gameAny: any = scene as any
-        if (gameAny.isGameOver) return
+        if (gameAny.isGameOver) {
+          shell.destroy()
+          trailEv.remove()
+          return
+        }
         if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+          shell.destroy()
+          trailEv.remove()
           const puff = scene.add.image(destX, destY, 'explosion_small_1')
           puff.setScale(0.55)
           puff.setAlpha(0.45)
@@ -201,16 +245,34 @@ export class Bruiser {
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
           if (actualDist > 38) {
-            const miss = scene.add.image(destX, destY, 'explosion_small_1')
-            miss.setScale(0.5)
-            miss.setAlpha(0.35)
-            miss.setTint(0xaaaaaa)
-            miss.setDepth(13)
-            scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
-            if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
+            const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
+            const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
+            let extraDuration = speed > 0 ? Math.round(remaining / speed) : 260
+            extraDuration = Phaser.Math.Clamp(extraDuration, 80, 800)
+            scene.tweens.add({
+              targets: shell,
+              x: borderX,
+              y: borderY,
+              duration: extraDuration,
+              ease: 'Linear',
+              onComplete: () => {
+                shell.destroy()
+                trailEv.remove()
+                const miss = scene.add.image(borderX, borderY, 'explosion_small_1')
+                miss.setScale(0.5)
+                miss.setAlpha(0.35)
+                miss.setTint(0xaaaaaa)
+                miss.setDepth(13)
+                scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+                if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+              },
+            })
             return
           }
         }
+        shell.destroy()
+        trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })
         scene.cameras.main.shake(80, 0.005)
         const exp = scene.add.image(destX, destY, 'explosion_small_1')
