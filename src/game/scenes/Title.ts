@@ -16,6 +16,13 @@ export class Title extends Phaser.Scene {
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
   private audio!: AudioManager
+  // Fix #2: Demo mode player wandering — free space random wandering like enemies, visual only (no health loss / no Game Over)
+  private playerTargetX = 160
+  private playerTargetY = 200
+  private playerSpeed = 0.85
+  // Demo flag — ensures no real gameplay effects (health, Game Over) in Title
+  public isDemo = true
+  public isGameOver = false // for bot tryFire compatibility — demo never Game Over
 
   constructor() {
     super('Title')
@@ -51,19 +58,19 @@ export class Title extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
+    // Fix #2: Demo player starts near center-bottom but will wander free space randomly (like enemies)
     this.playerBase = this.add.image(160, height - 32, 'player_base')
     this.playerBase.setScale(0.9)
     this.playerTurret = this.add.image(160, height - 32, 'player_turret')
     this.playerTurret.setScale(0.9)
     this.playerTurret.setOrigin(0.5, 0.7)
-    this.tweens.add({
-      targets: [this.playerBase, this.playerTurret],
-      y: height - 31,
-      duration: 300,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    })
+    // Demo wandering — random targets anywhere on free space (30,290 / 30,220), speed 0.7-1.0
+    this.playerTargetX = Phaser.Math.Between(30, 290)
+    this.playerTargetY = Phaser.Math.Between(80, 200)
+    this.playerSpeed = Phaser.Math.FloatBetween(0.7, 1.0)
+    this.pickNewPlayerTarget()
+    // Subtle idle bob removed in favor of wandering; keep tiny breathing if desired but wandering is primary
+    // Previously: tweens yoyo 300ms — replaced by free wandering to showcase shooting bots in demo
 
     for (let i = 0; i < 3; i++) {
       const bx = 64 + i * 96
@@ -252,8 +259,43 @@ export class Title extends Phaser.Scene {
     return { x: this.playerTurret.x + lx, y: this.playerTurret.y + ly }
   }
 
+  private pickNewPlayerTarget() {
+    // Demo wandering — pick new random free space target every 1.4-2.2s (like enemies)
+    this.playerTargetX = Phaser.Math.Between(30, 290)
+    this.playerTargetY = Phaser.Math.Between(30, 200)
+    this.time.delayedCall(Phaser.Math.Between(1400, 2200), () => {
+      if ((this as any)._starting) return
+      if (!this.scene.isActive()) return
+      if (!this.playerBase?.active) return
+      // isDemo guard — if demo were disabled, don't wander
+      if (!this.isDemo) return
+      this.pickNewPlayerTarget()
+    })
+  }
+
   update() {
-    // Each bot own code, random free space, no collide, barrel aims at you
+    // Fix #2: Demo player wandering — free space random wandering like enemies, but with demo logic (no health loss)
+    // Demo not real gameplay: bots' shells on Title do not cause damage/Game Over; player just visually shoots bots
+    if (this.isDemo && this.playerBase?.active) {
+      const pAngle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, this.playerTargetX, this.playerTargetY)
+      const pDist = Phaser.Math.Distance.Between(this.playerBase.x, this.playerBase.y, this.playerTargetX, this.playerTargetY)
+      if (pDist < 4) {
+        this.playerTargetX = Phaser.Math.Between(30, 290)
+        this.playerTargetY = Phaser.Math.Between(30, 200)
+      } else {
+        this.playerBase.x += Math.cos(pAngle) * this.playerSpeed
+        this.playerBase.y += Math.sin(pAngle) * this.playerSpeed
+        this.playerTurret.x = this.playerBase.x
+        this.playerTurret.y = this.playerBase.y
+      }
+      // Clamp player inside free space
+      const { width: pw, height: ph } = this.scale as any
+      this.playerBase.x = Phaser.Math.Clamp(this.playerBase.x, 24, pw - 24)
+      this.playerBase.y = Phaser.Math.Clamp(this.playerBase.y, 30, ph - 40)
+      this.playerTurret.x = this.playerBase.x
+      this.playerTurret.y = this.playerBase.y
+    }
+    // Each bot own code, random free space, barrel aims at you (demo bots still shoot visually but no damage)
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
     const minDist = 30
     for (let i = 0; i < this.bots.length; i++) {

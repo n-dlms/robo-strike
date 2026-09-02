@@ -257,7 +257,8 @@ export class Scout {
     })
 
     const baseDuration = 360
-    // First leg: tip -> predicted player pos
+    // First leg: tip -> predicted player pos. Bullets only stop on hit; on miss they continue to border edge.
+    // Shell is not destroyed early — it persists until final destination (player or border).
     scene.tweens.add({
       targets: shell,
       x: destX,
@@ -266,13 +267,10 @@ export class Scout {
       ease: 'Linear',
       onComplete: () => {
         const gameAny: any = scene as any
-        if (gameAny.isGameOver) {
-          shell.destroy()
-          trailEv.remove()
-          return
-        }
-        // Invulnerability check — if player i-framed, show shield puff at player, shell stops (blocked hit)
-        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+        const now = scene.time.now
+        // Invulnerability check — if player i-framed, show shield puff at player, shell stops (blocked hit, no damage)
+        // This is a valid stop at player (shield block), not an early destroy to border.
+        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(now) && !gameAny.isGameOver && !gameAny.gameOverShown) {
           shell.destroy()
           trailEv.remove()
           const puff = scene.add.image(destX, destY, 'explosion_small_1')
@@ -283,17 +281,48 @@ export class Scout {
           scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
           return
         }
-        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss: continue to border
+        // If Game Over already triggered, do NOT destroy early at predicted pos — continue visually to border
+        // This ensures shells in flight finish their trajectory to 0,width,0,height edge instead of vanishing
+        if (gameAny.isGameOver || gameAny.gameOverShown) {
+          // No damage — just continue to border for visual continuity
+          const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
+          const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
+          const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
+          let extraDuration = speed > 0 ? Math.round(remaining / speed) : 240
+          extraDuration = Phaser.Math.Clamp(extraDuration, 80, 700)
+          // Ensure shell persists — not destroyed early — until border reached
+          scene.tweens.add({
+            targets: shell,
+            x: borderX,
+            y: borderY,
+            duration: extraDuration,
+            ease: 'Linear',
+            onComplete: () => {
+              shell.destroy()
+              trailEv.remove()
+              const miss = scene.add.image(borderX, borderY, 'explosion_small_1')
+              miss.setScale(0.5)
+              miss.setAlpha(0.35)
+              miss.setTint(0xaaaaaa)
+              miss.setDepth(13)
+              scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+              if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            },
+          })
+          return
+        }
+        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss: continue to border edge
         const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
           if (actualDist > 38) {
-            // Miss — shell continues to border edge instead of vanishing at player
+            // Miss — shell continues to border edge (raycast to 0,width,0,height) with proper duration, not disappearing at dest
             const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
             const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
             const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
             let extraDuration = speed > 0 ? Math.round(remaining / speed) : 240
             extraDuration = Phaser.Math.Clamp(extraDuration, 80, 700)
+            // Shell not destroyed early — second leg to border
             scene.tweens.add({
               targets: shell,
               x: borderX,
@@ -315,7 +344,7 @@ export class Scout {
             return
           }
         }
-        // Hit — full effects at player
+        // Hit — full effects at player, stop at player (only on hit)
         shell.destroy()
         trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })
@@ -334,7 +363,8 @@ export class Scout {
           scene.time.delayedCall(60, () => { if (pt.active) pt.clearTint() })
         }
         // Notify scene that player was hit — every shell that reaches player counts, but i-frames & miss handle spam
-        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
+        // Guard ensures Game Over triggers only once
+        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver && !gameAny.gameOverShown) {
           gameAny.onEnemyShellHitPlayer(1)
         }
       },

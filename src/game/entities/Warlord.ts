@@ -219,6 +219,8 @@ export class Warlord {
       },
     })
     const baseDuration = 480
+    // First leg: tip -> predicted player pos. Bullets only stop on hit; on miss they continue to border edge (raycast to 0,width,0,height).
+    // Shell is not destroyed early — persists until final destination.
     scene.tweens.add({
       targets: shell,
       x: destX,
@@ -227,12 +229,9 @@ export class Warlord {
       ease: 'Linear',
       onComplete: () => {
         const gameAny: any = scene as any
-        if (gameAny.isGameOver) {
-          shell.destroy()
-          trailEv.remove()
-          return
-        }
-        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(scene.time.now)) {
+        const now = scene.time.now
+        // Invulnerability: shield puff at player, stop at player (blocked hit)
+        if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(now) && !gameAny.isGameOver && !gameAny.gameOverShown) {
           shell.destroy()
           trailEv.remove()
           const puff = scene.add.image(destX, destY, 'explosion_small_1')
@@ -243,15 +242,44 @@ export class Warlord {
           scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
           return
         }
+        // If Game Over already triggered, continue to border instead of vanishing early at dest
+        if (gameAny.isGameOver || gameAny.gameOverShown) {
+          const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
+          const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
+          const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
+          let extraDuration = speed > 0 ? Math.round(remaining / speed) : 280
+          extraDuration = Phaser.Math.Clamp(extraDuration, 80, 900)
+          scene.tweens.add({
+            targets: shell,
+            x: borderX,
+            y: borderY,
+            duration: extraDuration,
+            ease: 'Linear',
+            onComplete: () => {
+              shell.destroy()
+              trailEv.remove()
+              const miss = scene.add.image(borderX, borderY, 'explosion_small_1')
+              miss.setScale(0.5)
+              miss.setAlpha(0.35)
+              miss.setTint(0xaaaaaa)
+              miss.setDepth(13)
+              scene.tweens.add({ targets: miss, scale: 0.85, alpha: 0, duration: 160, onComplete: () => miss.destroy() })
+              if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.22 })
+            },
+          })
+          return
+        }
         const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
           if (actualDist > 38) {
+            // Miss — continue to border edge with proper duration, not disappearing at player
             const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
             const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
             const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
             let extraDuration = speed > 0 ? Math.round(remaining / speed) : 280
             extraDuration = Phaser.Math.Clamp(extraDuration, 80, 900)
+            // Shell not destroyed early — second leg to border
             scene.tweens.add({
               targets: shell,
               x: borderX,
@@ -273,6 +301,7 @@ export class Warlord {
             return
           }
         }
+        // Hit — stop at player
         shell.destroy()
         trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.5 })
@@ -284,7 +313,7 @@ export class Warlord {
         const pt = gameAny.playerTurret as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) { pb.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pb.active) pb.clearTint() }) }
         if (pt && pt.active) { pt.setTint(0xffffff); scene.time.delayedCall(70, () => { if (pt.active) pt.clearTint() }) }
-        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver) {
+        if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver && !gameAny.gameOverShown) {
           gameAny.onEnemyShellHitPlayer(1)
         }
       },

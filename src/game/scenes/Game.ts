@@ -51,19 +51,35 @@ export class Game extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
-    this.audio = new AudioManager(this)
-    this.audio.initMusic()
+    // Fix #4: cleanup stale bots from previous run (scene.restart retains this.bots array but destroys display list)
+    // Without clearing, bots accumulate and nextFireTime may be in the past, causing enemies to never shoot after RETRY
+    if (this.bots && this.bots.length > 0) {
+      this.bots.forEach((b: any) => {
+        try { b.destroy?.() } catch {}
+      })
+    }
+    this.bots = []
+    // Fix #3/#4: fully reset Game Over flags and timers before any bot logic can run
     this.isGameOver = false
     this.gameOverShown = false
+    this.audio = new AudioManager(this)
+    this.audio.initMusic()
     this.playerHits = this.playerMaxHits
     this.totalGains = 0
     this.gameOverContainer = undefined
     this.gameOverBackdrop = undefined
     this.countUp?.stop()
+    this.countUp = undefined as any
     this.nextEnemyFireTime = 0
     this.playerInvulnerableUntil = 0
     this.playerBlinkTween?.stop()
     this.playerBlinkTween = undefined
+    // Ensure any leftover health bar refs from destroyed scene are cleared — will be recreated below
+    this.playerHealthBarBg = undefined as any
+    this.playerHealthBarFill = undefined as any
+    this.playerHealthLabel = undefined as any
+    this.gainsHudText = undefined as any
+    ;(this as any)._retrying = false
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
@@ -420,11 +436,15 @@ export class Game extends Phaser.Scene {
 
   /** Called by bot fire onComplete — every shell that reaches player counts as hit */
   public onEnemyShellHitPlayer(damage = 1) {
+    // Fix #3: guard ensures Game Over appears only once — multiple shells arriving same frame must not trigger twice
     if (this.isGameOver || this.gameOverShown) return
+    if (this.gameOverContainer) return
     if (this.playerHits <= 0) return
     const now = this.time.now
     // i-frames: absorb if still invulnerable
     if (now < this.playerInvulnerableUntil) return
+    // Re-check after i-frames — another shell may have triggered Game Over during this tick
+    if (this.isGameOver || this.gameOverShown) return
     this.playerHits = Math.max(0, this.playerHits - damage)
     // flash player white (only on actual damage)
     this.playerBase.setTint(0xffffff)
@@ -612,9 +632,11 @@ export class Game extends Phaser.Scene {
     }
   }
 
-  // ---- Game Over ----
+  // ---- Game Over ---- (Fix #3: guard isGameOver + gameOverShown ensures only once, even if multiple shells hit after death)
   private triggerGameOver() {
-    if (this.gameOverShown) return
+    if (this.gameOverShown || this.isGameOver) return
+    if (this.gameOverContainer) return
+    // Set both flags synchronously BEFORE any delayedCall/popup to prevent race from multiple shells
     this.isGameOver = true
     this.gameOverShown = true
     // Hide player health bar
@@ -690,6 +712,9 @@ export class Game extends Phaser.Scene {
   }
 
   private showGameOverPopup() {
+    // Fix #3: ensure popup is created only once — guard double trigger from multiple shells
+    if (this.gameOverContainer) return
+    if (!this.isGameOver && !this.gameOverShown) return
     const { width, height } = this.scale
     // Backdrop dim 55% navy #0a1a3f
     this.gameOverBackdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x0a1a3f, 0.55)
@@ -831,9 +856,27 @@ export class Game extends Phaser.Scene {
   }
 
   private handleRetry() {
+    // Fix #3: guard RETRY to only once — prevent multiple scene.restart calls from rapid inputs
     if (!this.isGameOver) return
+    if ((this as any)._retrying) return
+    ;(this as any)._retrying = true
+    // Fix #4: reset enemy shooting timers and Game Over flags BEFORE restart so next create starts clean
+    // Without this, stale nextFireTime (past) or lingering isGameOver=true can cause bots to not shoot after RETRY
+    this.isGameOver = false
+    // keep gameOverShown true until create resets it, but prevent further triggers
     this.countUp?.stop()
     this.audio.playSfx('sfx_ui_blip')
+    // Reset per-bot nextFireTime to future so enemies shoot endlessly after restart (until player dies again)
+    const now = this.time.now
+    this.nextEnemyFireTime = now + 900
+    this.bots.forEach((b: any, idx: number) => {
+      const interval = (b as any).fireInterval ?? 1800
+      ;(b as any).nextFireTime = now + interval + idx * 650 + Phaser.Math.Between(150, 400)
+      ;(b as any).isWindingUp = false
+    })
+    this.playerInvulnerableUntil = 0
+    this.playerBlinkTween?.stop()
+    this.playerBlinkTween = undefined
     // Fade out then restart scene cleanly
     if (this.gameOverContainer) {
       this.tweens.add({
@@ -843,10 +886,12 @@ export class Game extends Phaser.Scene {
         duration: 140,
         ease: 'Cubic.easeIn',
         onComplete: () => {
+          ;(this as any)._retrying = false
           this.scene.restart()
         },
       })
     } else {
+      ;(this as any)._retrying = false
       this.scene.restart()
     }
     // Also restart via fade
