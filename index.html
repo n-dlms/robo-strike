@@ -16,15 +16,15 @@
         align-items: center;
         justify-content: center;
         font-family: 'VT323', monospace;
-        /* Outside background: PIXABAY 3D CC0 — as named */
-        background: #000 url('/assets/arcade/pixabay_arcade_machine_3d.png') center/cover no-repeat;
+        /* Outside background: plain dark #05070a + blurred hall kept as file for later */
+        background: #05070a;
         position: relative;
       }
       body::before {
         content: '';
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.55);
+        background: radial-gradient(ellipse at center, #1a1a1f 0%, #05070a 70%, #000 100%);
         pointer-events: none;
       }
       /* Arcade border wrapper: BIGGER medium — not small, not fullscreen — 484/258 ratio from OGA arcade_gui_sheet */
