@@ -16,34 +16,48 @@ export class Game extends Phaser.Scene {
 
     this.add.rectangle(width / 2, height - 30, width, 2, 0x1a1a1a).setAlpha(0.5)
 
-    // Player tank — REAL IMAGE
+    // Player tank — REAL IMAGE (same as Title demo)
     const player = this.add.image(60, height - 70, 'player_idle_1')
     player.setScale(0.85)
     player.setOrigin(0.5)
+    player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    player.setTint(0x4ff2e3)
 
-    // 3 enemy tanks — REAL IMAGES
+    // 3 enemy tanks — REAL IMAGES (same as Title demo: SCOUT cyan, BRUISER magenta, WARLORD white)
     const enemies = [
-      { x: 160, y: 70, key: 'enemy1_idle_1', label: 'SCOUT\n×30' },
-      { x: 220, y: 70, key: 'enemy2_idle_1', label: 'BRUISER\n×15' },
-      { x: 280, y: 70, key: 'enemy3_idle_1', label: 'WARLORD\n×11' },
+      { x: 64, y: 66, key: 'enemy1_idle_1', name: 'SCOUT', mult: '×30' },
+      { x: 160, y: 66, key: 'enemy2_idle_1', name: 'BRUISER', mult: '×15' },
+      { x: 256, y: 66, key: 'enemy3_idle_1', name: 'WARLORD', mult: '×11' },
     ]
 
     enemies.forEach((e, idx) => {
-      // Bunker behind
       this.add.image(e.x, e.y + 10, 'bunker_intact').setScale(0.9).setOrigin(0.5).setDepth(-1)
       const tank = this.add.image(e.x, e.y, e.key)
       tank.setScale(0.85)
+      tank.setOrigin(0.5)
+      tank.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
       tank.setInteractive({ useHandCursor: true })
       tank.on('pointerdown', () => this.handlePick(idx))
 
       this.add
-        .text(e.x, e.y + 18, e.label, {
-          fontFamily: '"VT323"',
+        .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
+          fontFamily: '"Press Start 2P"',
           fontSize: '8px',
-          color: PALETTE_HEX.white,
-          align: 'center',
+          color: e.mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
+          stroke: PALETTE_HEX.outline,
+          strokeThickness: 1,
         })
         .setOrigin(0.5)
+        .setResolution(2)
+
+      this.add
+        .text(Math.round(e.x), Math.round(e.y - 14), e.name, {
+          fontFamily: '"VT323"',
+          fontSize: '10px',
+          color: PALETTE_HEX.white,
+        })
+        .setOrigin(0.5)
+        .setResolution(2)
     })
 
     this.add

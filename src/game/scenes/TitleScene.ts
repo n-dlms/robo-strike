@@ -80,25 +80,30 @@ export class TitleScene extends Phaser.Scene {
       const tank = this.add.image(e.x, e.y, e.key)
       tank.setScale(0.85)
       tank.setOrigin(0.5)
+      // Ensure sharp, no filter blur
+      tank.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
       this.enemyTanks.push(tank)
 
+      // Multiplier — crisp Press Start 2P 8px, integer pos, no blur
       this.add
-        .text(e.x, e.y + 18, e.mult, {
+        .text(Math.round(e.x), Math.round(e.y + 18), e.mult, {
           fontFamily: '"Press Start 2P"',
-          fontSize: '7px',
+          fontSize: '8px',
           color: e.mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
           stroke: PALETTE_HEX.outline,
           strokeThickness: 1,
         })
         .setOrigin(0.5)
+        .setResolution(2)
 
       this.add
-        .text(e.x, e.y - 16, e.name, {
+        .text(Math.round(e.x), Math.round(e.y - 14), e.name, {
           fontFamily: '"VT323"',
-          fontSize: '9px',
+          fontSize: '10px',
           color: PALETTE_HEX.white,
         })
         .setOrigin(0.5)
+        .setResolution(2)
     })
 
     // ---- CRT scanline + vignette overlay ----
