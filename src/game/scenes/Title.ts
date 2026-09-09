@@ -20,6 +20,8 @@ export class Title extends Phaser.Scene {
   private audio!: AudioManager
   private paytable!: PaytablePanel
   // Fix #2: Demo mode player wandering — free space random wandering like enemies, visual only (no health loss / no Game Over)
+  private tankLabels: Phaser.GameObjects.Text[] = []
+  private multTags: Phaser.GameObjects.Text[] = []
   private playerTargetX = 160
   private playerTargetY = 200
   private playerSpeed = 0.85
@@ -87,12 +89,14 @@ export class Title extends Phaser.Scene {
       { name: 'BRUISER', mult: '×15' },
       { name: 'WARLORD', mult: '×11' },
     ]
+    this.tankLabels = []
+    this.multTags = []
     botClasses.forEach((Cls, idx) => {
       const x = Phaser.Math.Between(30, 290)
       const y = Phaser.Math.Between(30, 120)
       const bot: any = new Cls(this, x, y)
       this.bots.push(bot)
-      this.add
+      const multTag = this.add
         .text(Math.round(x), Math.round(y + 18), labels[idx].mult, {
           fontFamily: '"Press Start 2P"',
           fontSize: '8px',
@@ -102,7 +106,8 @@ export class Title extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setResolution(2)
-      this.add
+      this.multTags.push(multTag)
+      const nameTag = this.add
         .text(Math.round(x), Math.round(y - 14), labels[idx].name, {
           fontFamily: '"VT323"',
           fontSize: '10px',
@@ -110,6 +115,7 @@ export class Title extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setResolution(2)
+      this.tankLabels.push(nameTag)
     })
 
     const scanG = this.add.graphics()
@@ -326,6 +332,15 @@ export class Title extends Phaser.Scene {
     }
     // Each bot own code, random free space, barrel aims at you (demo bots still shoot visually but no damage)
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
+    // Name + multiplier tags follow their bots (else they go stale at spawn spots)
+    this.tankLabels.forEach((tag, i) => {
+      const b: any = this.bots[i]
+      if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y - 14))
+    })
+    this.multTags.forEach((tag, i) => {
+      const b: any = this.bots[i]
+      if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
+    })
     // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
