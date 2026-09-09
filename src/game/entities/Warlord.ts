@@ -338,7 +338,7 @@ export class Warlord {
       })
       scene.cameras.main.shake(160, 0.009)
       const audio: any = (scene as any).audio
-      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.75 })
+      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.55 })
       const exp = scene.add.image(this.base.x, this.base.y, 'explosion_small_1')
       exp.setScale(1.1); exp.setDepth(14)
       scene.tweens.add({ targets: exp, scale: 1.6, alpha: 0, duration: 240, onComplete: () => exp.destroy() })

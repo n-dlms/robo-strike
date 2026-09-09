@@ -391,7 +391,7 @@ export class Scout {
       })
       scene.cameras.main.shake(100, 0.005)
       const audio: any = (scene as any).audio
-      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.7 })
+      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.55 })
       const exp = scene.add.image(this.base.x, this.base.y, 'explosion_small_1')
       exp.setScale(1.0)
       exp.setDepth(14)

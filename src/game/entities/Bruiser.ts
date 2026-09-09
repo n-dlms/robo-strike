@@ -336,7 +336,7 @@ export class Bruiser {
       })
       scene.cameras.main.shake(140, 0.007)
       const audio: any = (scene as any).audio
-      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.7 })
+      if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.55 })
       const exp = scene.add.image(this.base.x, this.base.y, 'explosion_small_1')
       exp.setScale(1.05); exp.setDepth(14)
       scene.tweens.add({ targets: exp, scale: 1.55, alpha: 0, duration: 230, onComplete: () => exp.destroy() })

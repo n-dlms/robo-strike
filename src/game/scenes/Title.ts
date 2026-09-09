@@ -388,7 +388,7 @@ export class Title extends Phaser.Scene {
     // shoot from barrel tip, not center
     const tip = this.getPlayerBarrelTip()
 
-    this.audio.playSfx('sfx_fire', { volume: 0.7 })
+    this.audio.playSfx('sfx_fire', { volume: 0.4 })
     this.audio.duckMusic()
 
     this.tweens.add({
@@ -445,7 +445,7 @@ export class Title extends Phaser.Scene {
           bot.turret.clearTint()
         })
         this.cameras.main.shake(120, 0.006)
-        this.audio.playSfx('sfx_explosion_small', { volume: 0.8 })
+        this.audio.playSfx('sfx_explosion_small', { volume: 0.6 })
         const exp = this.add.image(target.x, target.y, 'explosion_small_1')
         exp.setScale(1.2)
         exp.setDepth(7)
@@ -475,7 +475,7 @@ export class Title extends Phaser.Scene {
             onComplete: () => part.destroy(),
           })
         }
-        this.audio.playSfx('sfx_win', { volume: 0.6 })
+        this.audio.playSfx('sfx_win', { volume: 0.5 })
         for (let c = 0; c < 6; c++) {
           const cx = target.x + ((c * 7) % 13) - 6
           const coin = this.add.image(cx, target.y, 'coin_1')

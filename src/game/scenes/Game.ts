@@ -730,7 +730,7 @@ export class Game extends Phaser.Scene {
 
     // ---- Presentation: muzzle flash, recoil, shell toward the SELECTED tank ----
     const tip = this.getPlayerBarrelTip()
-    this.audio.playSfx('sfx_fire', { volume: 0.75 })
+    this.audio.playSfx('sfx_fire', { volume: 0.4 })
     this.audio.duckMusic()
     this.cameras.main.shake(120, 0.008)
     this.tweens.add({ targets: [this.playerBase, this.playerTurret], y: this.playerBase.y - 2, duration: 60, yoyo: true, ease: 'Quad.easeOut' })
@@ -897,7 +897,7 @@ export class Game extends Phaser.Scene {
         }
         this.time.delayedCall(760, () => this.respawnEnemy(this.selectedTank))
       } else {
-        this.audio.playSfx('sfx_win', { volume: 0.65 })
+        this.audio.playSfx('sfx_win', { volume: 0.55 })
         for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
         for (let c = 0; c < 6; c++) {
           const cx = x + Phaser.Math.Between(-8, 8)
@@ -925,7 +925,7 @@ export class Game extends Phaser.Scene {
         if (target.base.active) { target.base.clearTint(); target.base.setTint(target.tintColor) }
         if (target.turret.active) { target.turret.clearTint(); target.turret.setTint(target.tintColor) }
       })
-      this.audio.playSfx('sfx_explosion_small', { volume: 0.6 })
+      this.audio.playSfx('sfx_explosion_small', { volume: 0.5 })
       const exp = this.add.image(x, y, 'explosion_small_1')
       exp.setScale(1.0).setDepth(14)
       this.tweens.add({ targets: exp, scale: 1.5, alpha: 0, duration: 220, onComplete: () => exp.destroy() })
@@ -1183,7 +1183,7 @@ export class Game extends Phaser.Scene {
       onComplete: () => {
         // Start CountUp from 0x to gains with tick sounds if gains>0, else no win sound
         if (this.totalGains > 0) {
-          this.audio.playSfx('sfx_win', { volume: 0.65 })
+          this.audio.playSfx('sfx_win', { volume: 0.55 })
           this.countUp = new CountUp(this, gainsLabel)
           this.countUp.start(this.totalGains, {
             playTick: () => this.audio.playSfx('sfx_coin_tick', { volume: 0.55 }),
