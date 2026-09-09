@@ -60,6 +60,7 @@ export class Game extends Phaser.Scene {
   private selectedTank: TankId = 0
   private overdriveOn = false
   private roundInFlight = false
+  private moveTween?: Phaser.Tweens.Tween
   private tankLabels: Phaser.GameObjects.Text[] = []
   private multTags: Phaser.GameObjects.Text[] = []
   private betText?: Phaser.GameObjects.Text
@@ -94,6 +95,7 @@ export class Game extends Phaser.Scene {
     this.casino = new CasinoSession()
     this.casino.init()
     this.roundInFlight = false
+    this.moveTween = undefined
     this.paytable = new PaytablePanel(this)
     this.stats = loadStats()
     this.playerHits = this.playerMaxHits
@@ -160,7 +162,8 @@ export class Game extends Phaser.Scene {
         // In Game Over, pointerdown is handled by popup — ignore move
         return
       }
-      this.tweens.add({ targets: [this.playerBase, this.playerTurret], x: Phaser.Math.Clamp(p.x, 24, width - 24), y: Phaser.Math.Clamp(p.y, 40, height - 40), duration: 220, ease: 'Quad.easeOut' })
+      this.moveTween?.stop()
+      this.moveTween = this.tweens.add({ targets: [this.playerBase, this.playerTurret], x: Phaser.Math.Clamp(p.x, 24, width - 24), y: Phaser.Math.Clamp(p.y, 40, height - 40), duration: 220, ease: 'Quad.easeOut' })
     })
 
     // Each bot own code — random free space
@@ -385,6 +388,9 @@ export class Game extends Phaser.Scene {
     if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed
     if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed
     if (dx !== 0 || dy !== 0) {
+      // Manual steering overrides click-to-move (else tween + WASD fight)
+      this.moveTween?.stop()
+      this.moveTween = undefined
       this.playerBase.x = Phaser.Math.Clamp(this.playerBase.x + dx, 24, width - 24)
       this.playerBase.y = Phaser.Math.Clamp(this.playerBase.y + dy, 40, height - 40)
       this.playerTurret.x = this.playerBase.x
@@ -444,6 +450,10 @@ export class Game extends Phaser.Scene {
         bot.base.y += Math.sin(angle) * push
         bot.turret.x = bot.base.x
         bot.turret.y = bot.base.y
+        // Stop-at-contact: a click-to-move tween would otherwise drag the
+        // player straight through the bot (~15px/frame vs 1px pushes).
+        this.moveTween?.stop()
+        this.moveTween = undefined
       }
     }
     // Keep bots inside free space — wander anywhere on free space
