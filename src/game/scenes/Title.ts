@@ -76,13 +76,8 @@ export class Title extends Phaser.Scene {
     // Subtle idle bob removed in favor of wandering; keep tiny breathing if desired but wandering is primary
     // Previously: tweens yoyo 300ms — replaced by free wandering to showcase shooting bots in demo
 
-    for (let i = 0; i < 3; i++) {
-      const bx = 64 + i * 96
-      const bunker = this.add.image(bx, 78, 'bunker_intact')
-      bunker.setScale(1.1)
-      bunker.setOrigin(0.5)
-    }
-
+    // (Stale parked-bunker row removed: bots wander free space now, and the
+    // three frozen bunkers read as tanks that never move.)
     const botClasses: any[] = [Scout, Bruiser, Warlord]
     const labels = [
       { name: 'SCOUT', mult: '×30' },
