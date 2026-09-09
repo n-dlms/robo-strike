@@ -45,6 +45,8 @@ export class Game extends Phaser.Scene {
   private readonly playerIFramesMs = 800
   private playerBlinkTween?: Phaser.Tweens.Tween
 
+  // Single reusable center banner — one slot, never stacked (see showBanner)
+  private bannerText?: Phaser.GameObjects.Text
   // Game Over UI refs
   private gameOverContainer?: Phaser.GameObjects.Container
   private gameOverBackdrop?: Phaser.GameObjects.Rectangle
@@ -603,7 +605,7 @@ export class Game extends Phaser.Scene {
     this.selectedTank = index as TankId
     this.audio.playSfx('sfx_ui_blip')
     const labels = TANK_NAMES
-    const t = this.add.text(160, 110, `PICKED ${labels[index]}`, {
+    const t = this.add.text(160, 132, `PICKED ${labels[index]}`, {
       fontFamily: '"VT323"',
       fontSize: '10px',
       color: '#fff',
@@ -654,26 +656,32 @@ export class Game extends Phaser.Scene {
     })
   }
 
-  private showBanner(text: string, color: string, holdMs = 1200) {
+  private showBanner(text: string, color: string, holdMs = 1200, laneY = 60) {
     const { width } = this.scale
-    const banner = this.add
-      .text(width / 2, 60, text, {
-        fontFamily: '"Press Start 2P"',
-        fontSize: '10px',
-        color,
-        stroke: PALETTE_HEX.outline,
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setDepth(60)
+    // Reuse one slot: a new banner replaces the live one (kill its tween,
+    // reset text/color/lane) so center banners can never stack on each other.
+    if (!this.bannerText || !this.bannerText.active) {
+      this.bannerText = this.add
+        .text(width / 2, laneY, text, {
+          fontFamily: '"Press Start 2P"',
+          fontSize: '10px',
+          color,
+          stroke: PALETTE_HEX.outline,
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5)
+        .setResolution(2)
+        .setDepth(60)
+    }
+    const banner = this.bannerText
+    this.tweens.killTweensOf(banner)
+    banner.setText(text).setColor(color).setY(laneY).setAlpha(1)
     this.tweens.add({
       targets: banner,
       alpha: 0,
-      y: 52,
+      y: laneY - 8,
       delay: holdMs,
       duration: 320,
-      onComplete: () => banner.destroy(),
     })
   }
 
@@ -722,7 +730,7 @@ export class Game extends Phaser.Scene {
 
     // ---- Presentation: muzzle flash, recoil, shell toward the SELECTED tank ----
     const tip = this.getPlayerBarrelTip()
-    this.audio.playSfx('sfx_fire', { volume: 0.85 })
+    this.audio.playSfx('sfx_fire', { volume: 0.75 })
     this.audio.duckMusic()
     this.cameras.main.shake(120, 0.008)
     this.tweens.add({ targets: [this.playerBase, this.playerTurret], y: this.playerBase.y - 2, duration: 60, yoyo: true, ease: 'Quad.easeOut' })
@@ -794,7 +802,7 @@ export class Game extends Phaser.Scene {
     this.stats = rec.state
     if (result.outcome > 0 && rec.state.streak >= 2) {
       this.time.delayedCall(300, () => {
-        this.showBanner(`STREAK ×${rec.state.streak}`, PALETTE_HEX.green, 900)
+        this.showBanner(`STREAK ×${rec.state.streak}`, PALETTE_HEX.green, 900, 78)
         this.cameras.main.shake(120, 0.006 + Math.min(rec.state.streak, 6) * 0.001)
         this.audio.playSfx('sfx_coin_tick', { volume: 0.5, rate: Math.min(1 + rec.state.streak * 0.06, 1.5) } as never)
       })
@@ -812,8 +820,10 @@ export class Game extends Phaser.Scene {
     }
 
     const payoutText = (txt: string, color: string) => {
+      // Float BELOW the tank (count-up ×N lives above at y-30) so the two
+      // never drift through each other.
       const t = this.add
-        .text(x, y - 24, txt, {
+        .text(x, y + 22, txt, {
           fontFamily: '"VT323"',
           fontSize: '14px',
           color,
@@ -823,7 +833,7 @@ export class Game extends Phaser.Scene {
         .setOrigin(0.5)
         .setResolution(2)
         .setDepth(20)
-      this.tweens.add({ targets: t, y: y - 44, alpha: 0, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() })
+      this.tweens.add({ targets: t, y: y + 32, alpha: 0, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() })
     }
 
     // MISS — dust puff short of the hull, no contact
