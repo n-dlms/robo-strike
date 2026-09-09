@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { PALETTE, PALETTE_HEX } from '../../config/palette'
 import { AudioManager } from '../systems/AudioManager'
+import { PaytablePanel } from '../systems/PaytablePanel'
+import { loadStats } from '../systems/Stats'
 import { Scout } from '../entities/Scout'
 import { Bruiser } from '../entities/Bruiser'
 import { Warlord } from '../entities/Warlord'
@@ -16,6 +18,7 @@ export class Title extends Phaser.Scene {
   private startText!: Phaser.GameObjects.Text
   private orTapText!: Phaser.GameObjects.Text
   private audio!: AudioManager
+  private paytable!: PaytablePanel
   // Fix #2: Demo mode player wandering — free space random wandering like enemies, visual only (no health loss / no Game Over)
   private playerTargetX = 160
   private playerTargetY = 200
@@ -32,23 +35,22 @@ export class Title extends Phaser.Scene {
     const { width, height } = this.scale
     this.audio = new AudioManager(this)
     this.audio.initMusic()
+    this.paytable = new PaytablePanel(this)
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
     bg.setAlpha(0.95)
-    const starTile = this.add.tileSprite(width / 2, height / 2 - 20, width, height - 40, 'bg_starfield')
-    starTile.setAlpha(0.35)
-    starTile.setTileScale(1, 1)
-    for (let i = 0; i < 16; i++) {
+    // Procedural sparse starfield — the plus-cross tile read as static noise
+    for (let i = 0; i < 40; i++) {
       const x = (i * 73 + 17) % width
       const y = (i * 41 + 29) % (height - 30)
-      const dot = this.add.rectangle(x, y, 1, 1, PALETTE.white)
-      dot.setAlpha(0.5 + ((i * 7) % 3) * 0.15)
+      const dot = this.add.rectangle(x, y, 1, 1, 0xffffff)
+      dot.setAlpha(0.2 + ((i * 7) % 3) * 0.12)
       if (i % 5 === 0) {
         this.tweens.add({
           targets: dot,
-          alpha: 0.2,
-          duration: 1200 + (i % 4) * 300,
+          alpha: 0.08,
+          duration: 1400 + (i % 4) * 300,
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
@@ -227,6 +229,33 @@ export class Title extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11)
       .setAlpha(0.65)
+
+    const stats = loadStats()
+    if (stats.rounds > 0) {
+      const best = (stats.biggestMultX100 / 100).toFixed(2)
+      const marquee = this.add
+        .text(modalX, modalY + 38, `ROUNDS ${stats.rounds} · BEST WIN ${best}${stats.biggestWinLabel ? ' (' + stats.biggestWinLabel + ')' : ''} · STREAK ${stats.bestStreak}`, {
+          fontFamily: '"VT323"',
+          fontSize: '9px',
+          color: PALETTE_HEX.yellow,
+        })
+        .setOrigin(0.5)
+        .setDepth(11)
+      this.tweens.add({ targets: marquee, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 })
+    }
+    const oddsHint = this.add
+      .text(modalX, modalY + 50, 'T — PAYTABLE / ODDS', {
+        fontFamily: '"VT323"',
+        fontSize: '8px',
+        color: PALETTE_HEX.cyan,
+      })
+      .setOrigin(0.5)
+      .setDepth(11)
+      .setAlpha(0.8)
+    oddsHint.setInteractive({ useHandCursor: true })
+    this.paytable = new PaytablePanel(this)
+    oddsHint.on('pointerdown', () => this.paytable.toggle())
+    this.input.keyboard?.on('keydown-T', () => this.paytable.toggle())
 
     this.attractTimer = this.time.addEvent({
       delay: 4000,

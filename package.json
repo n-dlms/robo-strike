@@ -8,12 +8,25 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sim:rtp": "esbuild scripts/simulate-rtp.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simulate-rtp.mjs --log-level=warning && node node_modules/.cache/simulate-rtp.mjs",
+    "lint:rng": "bash -c \"grep -rnE 'Math\\.random\\(' src/ contracts/ 2>/dev/null && echo 'FAIL: Math.random call found' && exit 1 || echo 'OK: no Math.random calls' \"",
+    "compile:sol": "node scripts/compile-contracts.mjs",
+    "sim:roundtrip": "esbuild src/config/paytables.ts --format=esm --outfile=node_modules/.cache/paytables.mjs --log-level=warning && esbuild vendor/casino-sdk/local-verify-network/src/local-verify-network.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/local-vrf.mjs --log-level=warning --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && node scripts/simulator-roundtrip.mjs",
+    "budget": "node scripts/budget.mjs",
+    "gen:bg": "node scripts/gen-battlefield.mjs",
+    "sim:stuck": "node scripts/chaos-stuck.mjs"
   },
   "dependencies": {
-    "phaser": "^3.80.0"
+    "penpal": "^7.0.6",
+    "phaser": "^3.80.0",
+    "sharp": "^0.35.4",
+    "viem": "^2.56.3"
   },
   "devDependencies": {
+    "@types/node": "^26.4.1",
+    "playwright": "^1.63.0",
+    "solc": "^0.8.36",
     "typescript": "^5.5.4",
     "vite": "^5.4.8",
     "vitest": "^2.1.8"

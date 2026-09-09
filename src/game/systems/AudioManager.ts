@@ -56,15 +56,31 @@ export class AudioManager {
 
   initMusic(key = 'music_loop') {
     if (this.scene.cache.audio.exists(key)) {
-      this.music = this.scene.sound.add(key, { loop: true, volume: this.musicEnabled ? 0.45 : 0 })
-      if (this.musicEnabled) {
-        const tryPlay = () => {
-          if (this.musicEnabled && !(this.music as any).isPlaying) (this.music as any).play?.()
-        }
-        tryPlay()
-        this.scene.input.once('pointerdown', tryPlay)
-        this.scene.input.keyboard?.once('keydown-SPACE', tryPlay)
+      this.attachMusic(key)
+      return
+    }
+    // Lazy path — music_loop deferred out of Boot preload for the ≤1.2MB wire
+    // budget; fetches in the background while the title screen plays SFX.
+    if (this.scene.cache.json.exists('__music_loading_' + key)) return
+    this.scene.cache.json.add('__music_loading_' + key, true)
+    this.scene.load.audio(key, [`assets/audio/${key}.ogg`, `assets/audio/${key}.wav`])
+    this.scene.load.once('complete', () => {
+      this.scene.cache.json.remove('__music_loading_' + key)
+      this.attachMusic(key)
+    })
+    this.scene.load.start()
+  }
+
+  private attachMusic(key: string) {
+    if (!this.scene.cache.audio.exists(key)) return
+    this.music = this.scene.sound.add(key, { loop: true, volume: this.musicEnabled ? 0.45 : 0 })
+    if (this.musicEnabled) {
+      const tryPlay = () => {
+        if (this.musicEnabled && !(this.music as any).isPlaying) (this.music as any).play?.()
       }
+      tryPlay()
+      this.scene.input.once('pointerdown', tryPlay)
+      this.scene.input.keyboard?.once('keydown-SPACE', tryPlay)
     }
   }
 

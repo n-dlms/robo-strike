@@ -6,6 +6,7 @@
 
 ## 1. Fonts (OFL 1.1 — bundled sale allowed)
 
+| Bleed WW2 Top-Down Tank Pack (T-34, Pz.Kpfw.IV-G, Tiger-II, KV-2 — hulls+turrets) | `public/assets/raw/{player,enemy1,enemy2,enemy3}_{base,turret}.png` | `opengameart.org/content/tank-pack-bleeds-game-art` (Tanks_Pack.zip) | **CC-BY 3.0** — commercial use allowed; author Bleed ("credit not needed but appreciated" — credited in README anyway); processed 2026-09-06: crop/rotate/downscale/tint/outline via `scripts/art/process-tanks.mjs` (sharp) | **PASS** (attribution given) |
 | File Path | Source Name | Source URL | License | Attribution | Date | Commercial | Notes |
 |-----------|-------------|------------|---------|-------------|------|------------|-------|
 | `assets/fonts/PressStart2P-Regular.woff2` | Press Start 2P | https://fonts.google.com/specimen/Press+Start+2P + https://github.com/google/fonts/blob/main/ofl/pressstart2p/OFL.txt | SIL OFL 1.1 (Copyright 2012 Cody) | No (keep OFL.txt if vendor TTF) | 2026-09-01 | **PASS** | Subset ASCII 32-126 + × via `pyftsubset` woff2 18KB |

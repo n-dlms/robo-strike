@@ -100,4 +100,24 @@ Overall RTP with Overdrive:
 
 > ROBO STRIKE — 95% RTP on all 3 tanks. Scout: 55×0, 30×0.7, 10×2, 4×6, 1×30. Bruiser: 65×0, 20×0.9, 9×3, 5×7, 1×15. Warlord: 78×0, 12×1, 6×6, 3×12, 1×11. Overdrive 40%×2.5 EV=1.0, no RTP impact. VRF mapping BigInt thresholds `floor(b×2^256/100)`, verified by 1M-round sim at `scripts/simulate-rtp.ts`.
 
-*Status: SPEC-LOCKED — awaiting subagent D validation and simulation implementation (Phase 2).*
+## 7. Simulation Transcript (npm run sim:rtp, 2026-09-05, seed 0x726F626F, N=1,000,000/tank)
+
+```
+SCOUT:   empirical RTP 94.9702% (diff −0.0298pp) PASS  (buckets 0.061/0.027/0.017/0.023/0.005pp, all ≤0.3pp)
+         Overdrive never 95.3789% / always 94.7376% (cond EV 0.9962) / mix 94.7044% (cond EV 1.0033) — all PASS
+BRUISER: empirical RTP 94.7955% (diff −0.2045pp) PASS  (buckets ≤0.070pp)
+         Overdrive never 95.0627% / always 95.2770% (cond EV 1.0009) / mix 94.9462% (cond EV 1.0006) — all PASS
+WARLORD: empirical RTP 94.5903% (diff −0.4097pp) PASS  (buckets ≤0.032pp)
+         Overdrive never 95.0885% / always 95.4147% (cond EV 1.0030) / mix 95.4698% (cond EV 0.9999) — all PASS
+ALL PROFILES PASS
+```
+
+Gate design notes: Overdrive modes use per-(tank,policy) seeds (one shared seed correlates the
+Overdrive draws across tanks and fails all three simultaneously — observed and fixed). RTP
+tolerance is max(±0.5pp, 2.5σ) with σ computed exactly from the paytable's second moment
+(always-mode σ ≈ 0.36–0.51pp at 1M, so a flat 0.5pp gate would flake); the conditional
+Overdrive EV gate (mean ×2.5-or-0 among qualifying rounds = 1.0 ± 3σ) directly verifies the
+40%×2.5 mapping. Exit code 1 on any failure; `npm run lint:rng` greps `Math.random(` in src/ + contracts/.
+
+*Status: VALIDATED — paytables.ts implemented, 63/63 tests green, simulation gate all-PASS (2026-09-05). Additionally verified on-chain: 60 simulator rounds, on-chain payouts === TS math, 0 mismatches (2026-09-06). The in-game PAYTABLE panel (key T) renders odds directly from this file's paytables via src/config/paytables.ts — declared math and displayed odds share one source.*
+*Status: VALIDATED — paytables.ts implemented, 63/63 tests green, simulation gate all-PASS (2026-09-05).*

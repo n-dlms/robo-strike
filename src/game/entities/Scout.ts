@@ -19,14 +19,15 @@ export class Scout {
   private healthBarBorder?: Phaser.GameObjects.Rectangle
 
   // Firing — slowed for playability (was 800)
+  readonly baseScale = 1
   readonly fireInterval = 1800
   private nextFireTime = 0
   private isWindingUp = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, betAmount = 10, maxBet = 100) {
     const pt = { x, y }
-    this.base = scene.add.image(pt.x, pt.y, 'enemy1_base').setScale(0.85)
-    this.turret = scene.add.image(pt.x, pt.y, 'enemy1_turret').setScale(0.85).setOrigin(0.5, 0.7)
+    this.base = scene.add.image(pt.x, pt.y, 'enemy1_base').setScale(this.baseScale)
+    this.turret = scene.add.image(pt.x, pt.y, 'enemy1_turret').setScale(this.baseScale).setOrigin(0.5, 0.7)
     this.base.setTint(this.tintColor)
     this.turret.setTint(this.tintColor)
     // Scout: fastest, jittery, small
@@ -137,7 +138,7 @@ export class Scout {
     // Telegraph — 280ms windup: flash + tiny scale pulse + charge dot
     this.base.setTint(0xffffff)
     this.turret.setTint(0xffffff)
-    scene.tweens.add({ targets: [this.base, this.turret], scale: 0.92, duration: 110, yoyo: true, ease: 'Quad.easeOut' })
+    scene.tweens.add({ targets: [this.base, this.turret], scale: this.baseScale * 0.92, duration: 110, yoyo: true, ease: 'Quad.easeOut' })
     const marker = scene.add.rectangle(this.base.x, this.base.y - 18, 4, 4, 0xffff66)
     marker.setDepth(13)
     marker.setAlpha(0.9)
@@ -458,7 +459,7 @@ export class Scout {
     this.turret.setPosition(x, y)
     this.base.setAlpha(1)
     this.turret.setAlpha(1)
-    this.base.setScale(0.85); this.turret.setScale(0.85)
+    this.base.setScale(this.baseScale); this.turret.setScale(this.baseScale)
     this.base.clearTint(); this.turret.clearTint()
     this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor)
     const wagerFactor = 1 + (betAmount / maxBet) * 1.5
@@ -477,7 +478,7 @@ export class Scout {
     scene.tweens.add({
       targets: [this.base, this.turret],
       alpha: 1,
-      scale: 0.85,
+      scale: this.baseScale,
       duration: 220,
       ease: 'Back.easeOut',
       onComplete: () => { this.base.clearTint(); this.turret.clearTint(); this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor) },

@@ -1,7 +1,9 @@
 # UI — Music & SFX Toggle Spec (Required — Do Not Forget)
 
 > Added 2026-09-01 per user request. Persisted to docs/ so implementation is not missed in Stage 3-4.
-> Status: SPEC-LOCKED. Must be implemented before ship (Phase 4 presentation).
+> Status: **IMPLEMENTED** (Phase 3-4, 2026-09-05) — `src/game/systems/AudioManager.ts`,
+> `♫`/`🔊` chips in Title + Game HUD, keys `M`/`S`, persists `roboStrike_audio_v1`,
+> instant mute, duck -6dB during fire. Verified in GUI smoke tests.
 
 ## Requirement
 - UI must provide **two independent toggles**: **Music** (loop `music_loop`) and **SFX** (all `sfx_*`).

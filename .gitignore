@@ -4,3 +4,5 @@ simulator/
 *.zip
 .DS_Store
 .env
+vendor/
+scripts/*.log

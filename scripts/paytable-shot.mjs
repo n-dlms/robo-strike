@@ -1,0 +1,18 @@
+import { chromium } from 'playwright'
+const browser = await chromium.launch({ args: ['--no-sandbox', '--enable-unsafe-swiftshader'] })
+const page = await browser.newPage({ viewport: { width: 920, height: 700 } })
+await page.goto('http://localhost:4173', { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(() => window.__ROBO?.scene.isActive('Title'), null, { timeout: 60000, polling: 250 })
+await page.keyboard.press('KeyT')
+await page.waitForTimeout(1500)
+await page.screenshot({ path: '/tmp/shots12/0-paytable-title.png' })
+await page.keyboard.press('KeyT')
+// into game
+await page.keyboard.press('Space')
+await page.waitForFunction(() => window.__ROBO?.scene.isActive('Game'), null, { timeout: 60000, polling: 250 })
+await page.waitForTimeout(1500)
+await page.keyboard.press('KeyT')
+await page.waitForTimeout(800)
+await page.screenshot({ path: '/tmp/shots12/0-paytable-game.png' })
+await browser.close()
+console.log('paytable shots done')

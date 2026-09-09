@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "gameId": "RoboStrikeGame",
+  "apiVersion": 1,
+  "defaultLocale": "en",
+  "locales": {
+    "en": {
+      "name": "ROBO STRIKE",
+      "description": "Retro CRT tank casino: pick 1 of 3 robot tanks (SCOUT low, BRUISER mid, WARLORD high volatility), set your bet, FIRE once — Chain VRF settles instantly via BigInt thresholds. 95% RTP, up to 30x, optional EV-neutral Overdrive."
+    }
+  },
+  "presentation": {
+    "mode": "full-iframe",
+    "hostPanels": { "openSession": false, "history": false, "status": false }
+  },
+  "capabilities": {
+    "openSession": true,
+    "submitAction": false,
+    "forfeitExpiredSession": false,
+    "cancelStuckRandomness": false,
+    "resize": true
+  },
+  "assets": {
+    "iconUrl": "/assets/raw/player_base.png",
+    "coverUrl": "/assets/arcade/oga_arcade_gui_sheet.png"
+  }
+}

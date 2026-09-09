@@ -5,8 +5,15 @@ import { CountUp } from '../systems/CountUp'
 import { Scout } from '../entities/Scout'
 import { Bruiser } from '../entities/Bruiser'
 import { Warlord } from '../entities/Warlord'
+import { CasinoSession, type RoundResult } from '../sdk/CasinoSession'
+import { formatUnits, parseUnits } from '../sdk/guest'
+import { PaytablePanel } from '../systems/PaytablePanel'
+import { loadStats, recordRound, saveStats, type StatsState } from '../systems/Stats'
+import { OUTCOME_NAMES, TANK_NAMES, type TankId } from '../../config/paytables'
 
 type Bot = Scout | Bruiser | Warlord
+
+const BET_LADDER = ['0.1', '0.5', '1', '5', '10', '25', '50', '100']
 
 export class Game extends Phaser.Scene {
   private audio!: AudioManager
@@ -45,6 +52,21 @@ export class Game extends Phaser.Scene {
   private countUp?: CountUp
   private gameOverShown = false
 
+  // ---- Casino layer (Phase 3-3) ----
+  private casino!: CasinoSession
+  private betIdx = 2
+  private selectedTank: TankId = 0
+  private overdriveOn = false
+  private roundInFlight = false
+  private tankLabels: Phaser.GameObjects.Text[] = []
+  private multTags: Phaser.GameObjects.Text[] = []
+  private betText?: Phaser.GameObjects.Text
+  private odChip?: Phaser.GameObjects.Text
+  private bankText?: Phaser.GameObjects.Text
+  private vrfTicker?: Phaser.GameObjects.Text
+  private paytable!: PaytablePanel
+  private stats: StatsState = loadStats()
+
   constructor() {
     super('Game')
   }
@@ -59,11 +81,19 @@ export class Game extends Phaser.Scene {
       })
     }
     this.bots = []
+    this.tankLabels = []
+    this.multTags = []
     // Fix #3/#4: fully reset Game Over flags and timers before any bot logic can run
     this.isGameOver = false
     this.gameOverShown = false
     this.audio = new AudioManager(this)
     this.audio.initMusic()
+    // Casino layer — host bridge if framed, standalone crypto-RNG demo otherwise
+    this.casino = new CasinoSession()
+    this.casino.init()
+    this.roundInFlight = false
+    this.paytable = new PaytablePanel(this)
+    this.stats = loadStats()
     this.playerHits = this.playerMaxHits
     this.totalGains = 0
     this.gameOverContainer = undefined
@@ -83,7 +113,26 @@ export class Game extends Phaser.Scene {
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
-    this.add.image(width / 2, height / 2, 'bg_starfield').setAlpha(0.25).setDisplaySize(width, height)
+    // Procedural sparse stars (1px, palette white) — replaces the plus-cross
+    // tile that read as static noise
+    for (let i = 0; i < 42; i++) {
+      const x = (i * 97 + 31) % width
+      const y = (i * 53 + 11) % (height - 40)
+      const dot = this.add.rectangle(x, y, 1, 1, 0xffffff)
+      dot.setAlpha(0.15 + ((i * 7) % 4) * 0.1)
+      dot.setDepth(0)
+      if (i % 6 === 0) {
+        this.tweens.add({
+          targets: dot,
+          alpha: 0.05,
+          duration: 1600 + (i % 5) * 400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+          delay: (i * 61) % 900,
+        })
+      }
+    }
     this.add.rectangle(width / 2, height - 30, width, 2, 0x1a1a1a).setAlpha(0.5)
 
     this.playerBase = this.add.image(60, height - 70, 'player_base')
@@ -131,8 +180,8 @@ export class Game extends Phaser.Scene {
       const bot: any = new Cls(this, rx, ry, this.betAmount, this.maxBet)
       this.bots.push(bot)
       this.add.image(pos.x, pos.y + 10, 'bunker_intact').setScale(0.9).setOrigin(0.5).setDepth(-1).setAlpha(0.3)
-      this.add
-        .text(Math.round(pos.x), Math.round(pos.y + 18), labels[idx].mult, {
+      const multTag = this.add
+        .text(Math.round(pos.x), Math.round(pos.y + 20), labels[idx].mult, {
           fontFamily: '"Press Start 2P"',
           fontSize: '8px',
           color: labels[idx].mult === '×30' ? PALETTE_HEX.yellow : PALETTE_HEX.white,
@@ -142,7 +191,8 @@ export class Game extends Phaser.Scene {
         .setOrigin(0.5)
         .setResolution(2)
         .setDepth(5)
-      this.add
+      this.multTags.push(multTag)
+      const nameTag = this.add
         .text(Math.round(pos.x), Math.round(pos.y - 14), labels[idx].name, {
           fontFamily: '"VT323"',
           fontSize: '10px',
@@ -151,12 +201,14 @@ export class Game extends Phaser.Scene {
         .setOrigin(0.5)
         .setResolution(2)
         .setDepth(5)
+      this.tankLabels.push(nameTag)
       bot.base.setInteractive({ useHandCursor: true })
       bot.turret.setInteractive({ useHandCursor: true })
       const pick = () => this.handlePick(idx)
       bot.base.on('pointerdown', pick)
       bot.turret.on('pointerdown', pick)
     })
+    this.refreshTankLabels()
 
     // Fire-spam fix: stagger initial fire timers so all 3 don't burst at t=0
     // Scout 1800 / Bruiser 2400 / Warlord 3000 already, but enforce round-robin offset on top
@@ -169,20 +221,64 @@ export class Game extends Phaser.Scene {
       this.nextEnemyFireTime = now + 900 // grace at round start
     }
 
-    this.add
-      .text(16, 16, `BET ${this.betAmount}`, {
-        fontFamily: '"VT323"',
-        fontSize: '12px',
-        color: PALETTE_HEX.yellow,
-        backgroundColor: PALETTE_HEX.outline,
-        padding: { x: 4, y: 2 },
-      })
+    // ---- Casino HUD: BET −/+ , OVERDRIVE toggle, BANK, mode line ----
+    const hudStyle = (size: string, color: string) => ({
+      fontFamily: '"VT323"',
+      fontSize: size,
+      color,
+      backgroundColor: PALETTE_HEX.outline,
+      padding: { x: 4, y: 2 },
+    })
+    const betDown = this.add
+      .text(16, 16, '−', hudStyle('14px', PALETTE_HEX.cyan))
       .setOrigin(0, 0.5)
       .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    this.betText = this.add
+      .text(30, 16, `BET ${BET_LADDER[this.betIdx]}`, hudStyle('12px', PALETTE_HEX.yellow))
+      .setOrigin(0, 0.5)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    const betUp = this.add
+      .text(96, 16, '+', hudStyle('14px', PALETTE_HEX.cyan))
+      .setOrigin(0, 0.5)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    this.odChip = this.add
+      .text(16, 30, `OD ${this.overdriveOn ? 'ON ×2.5' : 'OFF'}`, hudStyle('10px', this.overdriveOn ? PALETTE_HEX.magenta : PALETTE_HEX.white))
+      .setOrigin(0, 0.5)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    const oddsChip = this.add
+      .text(84, 30, 'ODDS', hudStyle('10px', PALETTE_HEX.yellow))
+      .setOrigin(0, 0.5)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    oddsChip.on('pointerdown', () => this.paytable.toggle())
+    betDown.on('pointerdown', () => this.adjustBet(-1))
+    betUp.on('pointerdown', () => this.adjustBet(1))
+    this.betText.on('pointerdown', () => this.toggleOverdrive())
+    this.odChip.on('pointerdown', () => this.toggleOverdrive())
+    this.bankText = this.add
+      .text(width - 16, 28, '', hudStyle('10px', PALETTE_HEX.green))
+      .setOrigin(1, 0.5)
+      .setDepth(10)
+    this.vrfTicker = this.add
+      .text(width / 2, 16, '', {
+        fontFamily: '"VT323"',
+        fontSize: '10px',
+        color: PALETTE_HEX.cyan,
+        backgroundColor: PALETTE_HEX.outline,
+        padding: { x: 4, y: 1 },
+      })
+      .setOrigin(0.5)
+      .setDepth(15)
+      .setVisible(false)
+    this.refreshCasinoHud()
 
-    // Gains HUD (visible during gameplay) — top-left under BET
+    // Gains HUD (visible during gameplay) — under the bet/OD row
     this.gainsHudText = this.add
-      .text(16, 30, `GAINS x${this.totalGains.toFixed(2)}`, {
+      .text(16, 44, `GAINS x${this.totalGains.toFixed(2)}`, {
         fontFamily: '"VT323"',
         fontSize: '10px',
         color: PALETTE_HEX.white,
@@ -237,6 +333,15 @@ export class Game extends Phaser.Scene {
       gSfx.setAlpha(on ? 1 : 0.35)
     })
 
+    // Casino keys: 1/2/3 pick tank, O overdrive, comma/period bet down/up
+    this.input.keyboard?.on('keydown-ONE', () => this.handlePick(0))
+    this.input.keyboard?.on('keydown-TWO', () => this.handlePick(1))
+    this.input.keyboard?.on('keydown-THREE', () => this.handlePick(2))
+    this.input.keyboard?.on('keydown-O', () => this.toggleOverdrive())
+    this.input.keyboard?.on('keydown-T', () => this.paytable.toggle())
+    this.input.keyboard?.on('keydown-COMMA', () => this.adjustBet(-1))
+    this.input.keyboard?.on('keydown-PERIOD', () => this.adjustBet(1))
+
     const fireBtn = this.add
       .text(width / 2, height - 20, 'FIRE', {
         fontFamily: '"Press Start 2P"',
@@ -254,7 +359,7 @@ export class Game extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ENTER', () => this.handleFire())
 
     this.add
-      .text(width / 2, height - 5, '320×240 4:3 • MOVE + AIM • EACH BOT OWN CODE', {
+      .text(width / 2, height - 5, '1/2/3 TANK • ,/. BET • O OVERDRIVE • T ODDS • SPACE FIRE', {
         fontFamily: '"VT323"',
         fontSize: '7px',
         color: '#666',
@@ -285,6 +390,16 @@ export class Game extends Phaser.Scene {
     }
 
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
+
+    // Tank name + multiplier tags follow their bots (labels stored per index)
+    this.tankLabels.forEach((tag, i) => {
+      const b: any = this.bots[i]
+      if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y - 14))
+    })
+    this.multTags.forEach((tag, i) => {
+      const b: any = this.bots[i]
+      if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
+    })
 
     const minDist = 30
     for (let i = 0; i < this.bots.length; i++) {
@@ -394,6 +509,9 @@ export class Game extends Phaser.Scene {
   // ---- Fire-spam fix: global fire gate & i-frames ----
   public canEnemyFire(now: number): boolean {
     if (this.isGameOver) return false
+    // Cosmetic pause while a VRF round resolves — return fire never interacts
+    // with the payout path (docs/research/movement_ai_casino.md Option 1).
+    if (this.roundInFlight) return false
     return now >= this.nextEnemyFireTime
   }
 
@@ -473,16 +591,6 @@ export class Game extends Phaser.Scene {
     }
   }
 
-  private getPayoutForBotIdx(idx: number): number {
-    // Map bot type to its jackpot multiplier as gains — within 0.7x..30x range
-    // SCOUT 30, BRUISER 15, WARLORD 11 per labels; also support fractional 0.7/2/6 variants via small random?
-    // For demo, use fixed jackpot but if want variety, could random tier. We'll keep deterministic.
-    if (idx === 0) return 30 // Scout
-    if (idx === 1) return 15 // Bruiser
-    if (idx === 2) return 11 // Warlord
-    return 1
-  }
-
   private getPlayerBarrelTip(): { x: number; y: number } {
     const rot = this.playerTurret.rotation
     const lx = Math.cos(rot - Math.PI / 2) * 12
@@ -492,8 +600,9 @@ export class Game extends Phaser.Scene {
 
   private handlePick(index: number) {
     if (this.isGameOver) return
-    const labels = ['SCOUT', 'BRUISER', 'WARLORD']
+    this.selectedTank = index as TankId
     this.audio.playSfx('sfx_ui_blip')
+    const labels = TANK_NAMES
     const t = this.add.text(160, 110, `PICKED ${labels[index]}`, {
       fontFamily: '"VT323"',
       fontSize: '10px',
@@ -501,9 +610,71 @@ export class Game extends Phaser.Scene {
     })
     t.setOrigin(0.5)
     this.tweens.add({ targets: t, alpha: 0, duration: 800, onComplete: () => t.destroy() })
+    this.refreshTankLabels()
     const target: any = this.bots[index]
+    if (!target) return
     const angle = Phaser.Math.Angle.Between(this.playerTurret.x, this.playerTurret.y, target.turret.x, target.turret.y)
     this.tweens.add({ targets: this.playerTurret, rotation: angle + Math.PI / 2, duration: 140, ease: 'Quad.easeOut' })
+  }
+
+  // ---- Casino HUD helpers ----
+  private adjustBet(dir: -1 | 1) {
+    const next = Phaser.Math.Clamp(this.betIdx + dir, 0, BET_LADDER.length - 1)
+    if (next === this.betIdx) return
+    this.betIdx = next
+    this.audio.playSfx('sfx_ui_blip')
+    this.refreshCasinoHud()
+  }
+
+  private toggleOverdrive() {
+    this.overdriveOn = !this.overdriveOn
+    this.audio.playSfx('sfx_ui_blip')
+    this.refreshCasinoHud()
+  }
+
+  private refreshCasinoHud() {
+    this.betText?.setText(`BET ${BET_LADDER[this.betIdx]}`)
+    this.odChip
+      ?.setText(this.overdriveOn ? 'OD ON ×2.5' : 'OD OFF')
+      .setColor(this.overdriveOn ? PALETTE_HEX.magenta : PALETTE_HEX.white)
+    if (this.bankText) {
+      const bal = this.casino.displayBalance()
+      this.bankText.setText(
+        this.casino.mode === 'standalone'
+          ? `BANK ${formatUnits(bal, this.casino.decimals())} · DEMO`
+          : `BANK ${formatUnits(bal, this.casino.decimals())} ${this.casino.symbol()}`,
+      )
+    }
+  }
+
+  private refreshTankLabels() {
+    this.tankLabels.forEach((tag, i) => {
+      tag.setColor(i === this.selectedTank ? PALETTE_HEX.yellow : PALETTE_HEX.white)
+      tag.setScale(i === this.selectedTank ? 1.15 : 1)
+    })
+  }
+
+  private showBanner(text: string, color: string, holdMs = 1200) {
+    const { width } = this.scale
+    const banner = this.add
+      .text(width / 2, 60, text, {
+        fontFamily: '"Press Start 2P"',
+        fontSize: '10px',
+        color,
+        stroke: PALETTE_HEX.outline,
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+      .setResolution(2)
+      .setDepth(60)
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      y: 52,
+      delay: holdMs,
+      duration: 320,
+      onComplete: () => banner.destroy(),
+    })
   }
 
   private handleFire() {
@@ -517,25 +688,39 @@ export class Game extends Phaser.Scene {
       return
     }
     if (this.isGameOver) return
-    // Find closest alive bot
-    let bestIdx = -1
-    let bestDist = Infinity
-    this.bots.forEach((b: any, i: number) => {
-      if ((b as any).alive === false) return
-      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
-      if (d < bestDist) { bestDist = d; bestIdx = i }
-    })
-    // if all dead, pick any
-    if (bestIdx === -1) {
-      this.bots.forEach((b: any, i: number) => {
-        const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
-        if (d < bestDist) { bestDist = d; bestIdx = i }
-      })
+    if (this.roundInFlight) return
+    if (!this.casino.canBet()) {
+      this.showBanner(
+        this.casino.mode === 'host' ? 'WALLET NOT READY' : 'STANDALONE DEMO',
+        PALETTE_HEX.magenta,
+        900,
+      )
+      return
     }
-    if (bestIdx === -1) return
-    const target: any = this.bots[bestIdx]
-    if (!target || target.alive === false) return
+    const target: any = this.bots[this.selectedTank]
+    if (!target) return
 
+    // Wager: ladder value in base units; host mode clamps to risk limits + balance.
+    const dec = this.casino.decimals()
+    let wager = parseUnits(BET_LADDER[this.betIdx], dec)
+    if (this.casino.mode === 'host') {
+      const max = this.casino.maxWager(this.selectedTank)
+      const bal = this.casino.displayBalance()
+      if (max !== undefined && wager > max) wager = max
+      if (wager > bal) wager = bal
+      if (wager <= 0n) {
+        this.showBanner('BET ABOVE LIMIT', PALETTE_HEX.magenta, 900)
+        return
+      }
+    } else if (wager > this.casino.balance) {
+      this.showBanner('LOW BANK', PALETTE_HEX.magenta, 900)
+      return
+    }
+
+    this.roundInFlight = true
+    const wagerFinal = wager
+
+    // ---- Presentation: muzzle flash, recoil, shell toward the SELECTED tank ----
     const tip = this.getPlayerBarrelTip()
     this.audio.playSfx('sfx_fire', { volume: 0.85 })
     this.audio.duckMusic()
@@ -547,10 +732,11 @@ export class Game extends Phaser.Scene {
     flash.setDepth(14)
     this.time.delayedCall(80, () => flash.destroy())
 
+    const destX = target.turret.x
+    const destY = target.turret.y
     const shell = this.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.6)
     shell.setDepth(11)
-    // trail
     const trailEv = this.time.addEvent({
       delay: 16,
       loop: true,
@@ -564,9 +750,14 @@ export class Game extends Phaser.Scene {
       },
     })
 
-    // capture target position at launch (target may move, but we tween to where it was — for simplicity track live)
-    const destX = target.turret.x
-    const destY = target.turret.y
+    // ---- Casino brain: VRF decides (host session or standalone crypto word) ----
+    const placePromise = this.casino
+      .placeRound(wagerFinal, this.selectedTank, this.overdriveOn)
+      .catch((err) => {
+        console.warn('[casino] round failed:', err)
+        return null
+      })
+
     this.tweens.add({
       targets: shell,
       x: destX,
@@ -576,43 +767,197 @@ export class Game extends Phaser.Scene {
       onComplete: () => {
         shell.destroy()
         trailEv.remove()
-        // re-evaluate target still alive and near
-        if (!target.alive) return
-        if (this.isGameOver) return
-        const killed = target.hit(this)
-        if (killed) {
-          // big explosion already handled inside hit (sfx_explosion_big, shake, flash, 1.5-2.0)
-          // Accumulate gains — total multiplier sum
-          const payout = this.getPayoutForBotIdx(bestIdx)
-          this.totalGains += payout
-          this.updateGainsHud()
-          // Play win jingle for gains if any
-          this.audio.playSfx('sfx_win', { volume: 0.65 })
-          for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
-          // coins spray
-          for (let c = 0; c < 6; c++) {
-            const cx = destX + Phaser.Math.Between(-8, 8)
-            const coin = this.add.image(cx, destY, 'coin_1')
-            coin.setScale(0.55)
-            coin.setDepth(12)
-            this.tweens.add({
-              targets: coin,
-              y: destY - 14 - (c % 3) * 4,
-              x: cx + (c % 2 === 0 ? 5 : -5),
-              alpha: 0,
-              duration: 420,
-              ease: 'Quad.easeOut',
-              delay: c * 18,
-              onComplete: () => coin.destroy(),
-            })
+        // Shell may arrive before settle (host tx ~seconds) — VRF suspense ticker
+        this.vrfTicker?.setText('VRF ...').setVisible(true).setAlpha(1)
+        this.tweens.add({ targets: this.vrfTicker, alpha: 0.45, duration: 300, yoyo: true, repeat: -1 })
+        placePromise.then((result) => {
+          this.tweens.killTweensOf(this.vrfTicker ?? [])
+          this.vrfTicker?.setVisible(false).setAlpha(1)
+          if (result) this.applyOutcome(result, destX, destY, target)
+          else {
+            this.roundInFlight = false
+            this.showBanner('ROUND FAILED', PALETTE_HEX.magenta, 900)
           }
-          this.time.delayedCall(760, () => this.respawnEnemy(bestIdx))
-        } else {
-          // not killed — small hit feedback already inside hit, add subtle coin tick for feedback
-          this.audio.playSfx('sfx_coin_tick', { volume: 0.35 })
-        }
+        })
       },
     })
+  }
+
+  /** Map a settled VRF outcome to tank-town presentation. Movement/AI never gates payout. */
+  private applyOutcome(result: RoundResult, x: number, y: number, target: any) {
+    const dec = this.casino.decimals()
+
+    // ---- session stats + streak escalation (cosmetic only — VRF untouched) ----
+    const mult = result.wager > 0n ? Number(result.payout) / Number(result.wager) : 0
+    const prevStreak = this.stats.streak
+    const rec = recordRound(this.stats, result.outcome, mult, OUTCOME_NAMES[result.outcome] || '')
+    this.stats = rec.state
+    if (result.outcome > 0 && rec.state.streak >= 2) {
+      this.time.delayedCall(300, () => {
+        this.showBanner(`STREAK ×${rec.state.streak}`, PALETTE_HEX.green, 900)
+        this.cameras.main.shake(120, 0.006 + Math.min(rec.state.streak, 6) * 0.001)
+        this.audio.playSfx('sfx_coin_tick', { volume: 0.5, rate: Math.min(1 + rec.state.streak * 0.06, 1.5) } as never)
+      })
+    } else if (result.outcome > 0 && prevStreak === 0) {
+      // nothing extra — base win ceremony already handles it
+    }
+    if (rec.newBest && rec.state.biggestMultX100 > 0 && result.outcome >= 2) {
+      this.time.delayedCall(700, () => this.showBanner('NEW BEST!', PALETTE_HEX.yellow, 1400))
+    }
+    const finish = () => {
+      this.casino.reveal(result.sessionId).then(() => {
+        this.roundInFlight = false
+        this.refreshCasinoHud()
+      })
+    }
+
+    const payoutText = (txt: string, color: string) => {
+      const t = this.add
+        .text(x, y - 24, txt, {
+          fontFamily: '"VT323"',
+          fontSize: '14px',
+          color,
+          stroke: PALETTE_HEX.outline,
+          strokeThickness: 1,
+        })
+        .setOrigin(0.5)
+        .setResolution(2)
+        .setDepth(20)
+      this.tweens.add({ targets: t, y: y - 44, alpha: 0, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() })
+    }
+
+    // MISS — dust puff short of the hull, no contact
+    if (result.outcome === 0) {
+      this.audio.playSfx('sfx_explosion_small', { volume: 0.3 })
+      const dust = this.add.image(x + 10, y - 8, 'explosion_small_1')
+      dust.setScale(0.6).setAlpha(0.6).setTint(0xaaaaaa).setDepth(13)
+      this.tweens.add({ targets: dust, scale: 1.1, alpha: 0, duration: 240, onComplete: () => dust.destroy() })
+      this.showBanner('MISS', PALETTE_HEX.white, 800)
+      finish()
+      return
+    }
+
+    // Overdrive branch — committed at openSession, revealed here.
+    if (result.overdriveTaken && !result.overdriveWon) {
+      this.audio.playSfx('sfx_miss', { volume: 0.6 })
+      const bust = this.add.image(x, y, 'explosion_small_1')
+      bust.setScale(0.8).setTint(0xff4f4f).setDepth(14)
+      this.tweens.add({ targets: bust, scale: 1.4, alpha: 0, duration: 300, onComplete: () => bust.destroy() })
+      this.showBanner('OVERDRIVE BUST', PALETTE_HEX.magenta, 1200)
+      payoutText('BUST', PALETTE_HEX.magenta)
+      finish()
+      return
+    }
+
+    // Contact tiers: GLANCE grazes, SOLID/CRIT/JACKPOT kill the tank.
+    const killed = result.outcome >= 2
+    const names = OUTCOME_NAMES
+    const tierColor =
+      result.outcome === 4 ? PALETTE_HEX.yellow : result.outcome === 3 ? PALETTE_HEX.magenta : PALETTE_HEX.cyan
+    if (result.overdriveTaken && result.overdriveWon) {
+      this.showBanner(`OVERDRIVE ${names[result.outcome]}!`, tierColor, 1400)
+    } else {
+      this.showBanner(names[result.outcome], tierColor, 1000)
+    }
+
+    if (killed) {
+      // Forced kill: presentation of the VRF tier — aim/movement never gates payout.
+      ;(target as any).hits = 1
+      ;(target as any).hit(this)
+      if (result.outcome === 4) {
+        // JACKPOT: lotto fanfare + coin fountain + flash
+        this.audio.playSfx('sfx_jackpot', { volume: 0.9 })
+        this.cameras.main.flash(200, 255, 217, 79)
+        for (let c = 0; c < 12; c++) {
+          const cx = x + Phaser.Math.Between(-14, 14)
+          const coin = this.add.image(cx, y, 'coin_1')
+          coin.setScale(0.55)
+          coin.setDepth(12)
+          this.time.delayedCall(c * 45, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
+          this.tweens.add({
+            targets: coin,
+            y: y - 16 - (c % 4) * 5,
+            x: cx + (c % 2 === 0 ? 7 : -7),
+            alpha: 0,
+            duration: 520,
+            ease: 'Quad.easeOut',
+            delay: c * 24,
+            onComplete: () => coin.destroy(),
+          })
+        }
+        this.time.delayedCall(760, () => this.respawnEnemy(this.selectedTank))
+      } else {
+        this.audio.playSfx('sfx_win', { volume: 0.65 })
+        for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
+        for (let c = 0; c < 6; c++) {
+          const cx = x + Phaser.Math.Between(-8, 8)
+          const coin = this.add.image(cx, y, 'coin_1')
+          coin.setScale(0.55)
+          coin.setDepth(12)
+          this.tweens.add({
+            targets: coin,
+            y: y - 14 - (c % 3) * 4,
+            x: cx + (c % 2 === 0 ? 5 : -5),
+            alpha: 0,
+            duration: 420,
+            ease: 'Quad.easeOut',
+            delay: c * 18,
+            onComplete: () => coin.destroy(),
+          })
+        }
+        this.time.delayedCall(760, () => this.respawnEnemy(this.selectedTank))
+      }
+    } else {
+      // GLANCE — grazed hull: flash + small explosion, tank survives
+      target.base.setTint(0xffffff)
+      target.turret.setTint(0xffffff)
+      this.time.delayedCall(90, () => {
+        if (target.base.active) { target.base.clearTint(); target.base.setTint(target.tintColor) }
+        if (target.turret.active) { target.turret.clearTint(); target.turret.setTint(target.tintColor) }
+      })
+      this.audio.playSfx('sfx_explosion_small', { volume: 0.6 })
+      const exp = this.add.image(x, y, 'explosion_small_1')
+      exp.setScale(1.0).setDepth(14)
+      this.tweens.add({ targets: exp, scale: 1.5, alpha: 0, duration: 220, onComplete: () => exp.destroy() })
+    }
+
+    // Payout ceremony: glance = instant float; ≥2× = tier-scaled count-up
+    // (docs/research/ui_feedback.md §5 durations via CountUp) + token amount.
+    if (result.payout > 0n) {
+      const amount = formatUnits(result.payout, dec)
+      if (result.outcome >= 2) {
+        const multText = this.add
+          .text(x, y - 30, '×0.00', {
+            fontFamily: '"Press Start 2P"',
+            fontSize: '11px',
+            color: result.outcome === 4 ? PALETTE_HEX.yellow : PALETTE_HEX.green,
+            stroke: PALETTE_HEX.outline,
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5)
+          .setResolution(2)
+          .setDepth(21)
+        const mult = Number(result.payout) / Number(result.wager || 1n)
+        new CountUp(this, multText).start(mult, {
+          playTick: () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }),
+          playPop: () => this.audio.playSfx('sfx_ui_blip', { volume: 0.5 }),
+        })
+        payoutText(`+${amount}`, PALETTE_HEX.yellow)
+        if (result.outcome === 4) {
+          // jackpot camera pulse
+          this.cameras.main.zoomTo(1.06, 150, 'Sine.easeOut', true)
+          this.time.delayedCall(320, () => this.cameras.main.zoomTo(1, 240, 'Sine.easeIn', true))
+        }
+      } else {
+        payoutText(`+${amount}`, PALETTE_HEX.cyan)
+        this.audio.playSfx('sfx_win', { volume: 0.45 })
+      }
+    }
+    if (result.wager > 0n) {
+      this.totalGains += Number(result.payout) / Number(result.wager)
+      this.updateGainsHud()
+    }
+    finish()
   }
 
   private respawnEnemy(idx: number) {

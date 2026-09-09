@@ -2,6 +2,8 @@
 
 > Unresolvable unknowns go here with exact wording to post.
 > Schema: # | Question (copy-paste ready) | Context | Date Added | Status
+>
+> **Resolved by implementation (2026-09-06, no Discord answer needed):** Q14 → chose Option A (Overdrive pre-committed in gameData bit 7 at openSession + same-word keccak sub-roll `keccak256(abi.encode(randomness,"ROBO_OVERDRIVE"))`; swap point isolated in RoboStrikeGame.onRandomness if the team prefers otherwise). Q38–41 → shipped Option 1 (instant cosmetic patrol): tanks wander/return fire cosmetically, bots pause while a round resolves, nothing gates payout except VRF — documented in PROGRESS.md + gameData separation. Q31/33/34 → shipped CC-BY OGA tank pack (Bleed) with attribution + CC0/procedural backgrounds instead of photo borders. Q27 → tier count-up durations shipped via CountUp (0.8s glance → 2.8s jackpot). Q5 → getRandomnessVerification feature-detect only (never called).
 
 | # | Question | Context | Date | Status |
 |---|----------|---------|------|--------|

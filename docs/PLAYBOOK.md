@@ -2,6 +2,11 @@
 
 > Merged from Stage-1 research (2026-09-01). Every decision has source.
 > Metric: highest probability of winning Chain Jam Vol.1 ($0 budget).
+> **STATUS 2026-09-06: build COMPLETE — see docs/PROGRESS.md for the as-built log
+> and docs/SUBMISSION.md for the finalized submission. Deviations from this
+> playbook (all justified in PROGRESS): internal res 320×240 (was 320×180);
+> tanks = Bleed's CC-BY WW2 pack with attribution (was CC0-only Sullivan plan);
+> Overdrive committed at openSession (gameData bit 7 + same-word keccak sub-roll).**
 
 ## 0. Architecture — Locked
 

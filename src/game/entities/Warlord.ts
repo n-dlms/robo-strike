@@ -16,14 +16,15 @@ export class Warlord {
   private healthBarBg?: Phaser.GameObjects.Rectangle
   private healthBarFill?: Phaser.GameObjects.Rectangle
 
+  readonly baseScale = 1
   readonly fireInterval = 3000
   private nextFireTime = 0
   private isWindingUp = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, betAmount = 10, maxBet = 100) {
     const pt = { x, y }
-    this.base = scene.add.image(pt.x, pt.y, 'enemy3_base').setScale(0.85)
-    this.turret = scene.add.image(pt.x, pt.y, 'enemy3_turret').setScale(0.85).setOrigin(0.5, 0.7)
+    this.base = scene.add.image(pt.x, pt.y, 'enemy3_base').setScale(this.baseScale)
+    this.turret = scene.add.image(pt.x, pt.y, 'enemy3_turret').setScale(this.baseScale).setOrigin(0.5, 0.7)
     this.base.setTint(this.tintColor)
     this.turret.setTint(this.tintColor)
     this.speed = Phaser.Math.FloatBetween(0.5, 0.85)
@@ -117,7 +118,7 @@ export class Warlord {
 
     this.base.setTint(0xffffff)
     this.turret.setTint(0xffffff)
-    scene.tweens.add({ targets: [this.base, this.turret], scale: 0.92, duration: 130, yoyo: true, ease: 'Quad.easeOut' })
+    scene.tweens.add({ targets: [this.base, this.turret], scale: this.baseScale * 0.94, duration: 130, yoyo: true, ease: 'Quad.easeOut' })
     const marker = scene.add.rectangle(this.base.x, this.base.y - 18, 6, 6, 0xffff66)
     marker.setDepth(13)
     marker.setAlpha(0.95)
@@ -384,7 +385,7 @@ export class Warlord {
   respawn(scene: Phaser.Scene, x: number, y: number, betAmount = 10, maxBet = 100) {
     this.base.setPosition(x, y); this.turret.setPosition(x, y)
     this.base.setAlpha(1); this.turret.setAlpha(1)
-    this.base.setScale(0.85); this.turret.setScale(0.85)
+    this.base.setScale(this.baseScale); this.turret.setScale(this.baseScale)
     this.base.clearTint(); this.turret.clearTint()
     this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor)
     const wagerFactor = 1 + (betAmount / maxBet) * 1.5
@@ -401,7 +402,7 @@ export class Warlord {
     this.base.setAlpha(0); this.turret.setAlpha(0)
     scene.tweens.add({
       targets: [this.base, this.turret],
-      alpha: 1, scale: 0.85, duration: 260, ease: 'Back.easeOut',
+      alpha: 1, scale: this.baseScale, duration: 260, ease: 'Back.easeOut',
       onComplete: () => { this.base.clearTint(); this.turret.clearTint(); this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor) },
     })
     this.updateHealthBar()

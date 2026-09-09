@@ -1,0 +1,9 @@
+# Cloudflare Workers Static Assets — primary host (unlimited bandwidth).
+# Deploy: npm run build && npx wrangler deploy
+name = "robo-strike"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist"
+# 404 page (NOT SPA rewrite — manifest must never be shadowed by index.html)
+not_found_handling = "404-page"

@@ -65,7 +65,8 @@ export class Boot extends Phaser.Scene {
     this.load.audio('sfx_gameover_new', ['assets/audio/sfx_gameover_new.ogg', 'assets/audio/sfx_gameover_new.wav'])
     this.load.audio('sfx_coin_tick', ['assets/audio/sfx_coin_tick.ogg', 'assets/audio/sfx_coin_tick.wav'])
     this.load.audio('sfx_ui_blip', ['assets/audio/sfx_ui_blip.ogg', 'assets/audio/sfx_ui_blip.wav'])
-    this.load.audio('music_loop', ['assets/audio/music_loop.ogg', 'assets/audio/music_loop.wav'])
+    // music_loop is intentionally NOT preloaded — 644KB deferred to runtime
+    // (AudioManager.initMusic lazy-loads it after boot; keeps initial wire ≤1.2MB)
 
     // Ensure all textures are NEAREST after load
     this.load.on('complete', () => {
