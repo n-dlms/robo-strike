@@ -388,7 +388,7 @@ export class Title extends Phaser.Scene {
     // shoot from barrel tip, not center
     const tip = this.getPlayerBarrelTip()
 
-    this.audio.playSfx('sfx_fire', { volume: 0.4 })
+    this.audio.playSfx('sfx_fire', { volume: 0.25 })
     this.audio.duckMusic()
 
     this.tweens.add({

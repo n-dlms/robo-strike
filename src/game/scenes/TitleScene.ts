@@ -349,7 +349,7 @@ export class TitleScene extends Phaser.Scene {
     const target = { x: bot.turret.x, y: bot.turret.y }
     const tip = this.getPlayerBarrelTip()
 
-    this.audio.playSfx('sfx_fire', { volume: 0.4 })
+    this.audio.playSfx('sfx_fire', { volume: 0.25 })
     this.audio.duckMusic()
 
     this.tweens.add({
