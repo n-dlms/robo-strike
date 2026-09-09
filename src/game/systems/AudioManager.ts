@@ -54,14 +54,26 @@ export class AudioManager {
     return this.sfxEnabled
   }
 
-  initMusic(key = 'music_loop') {
+  initMusic(key = 'music_loop', attempt = 0) {
+    if (this.music) return
     if (this.scene.cache.audio.exists(key)) {
       this.attachMusic(key)
       return
     }
     // Lazy path — music_loop deferred out of Boot preload for the ≤1.2MB wire
     // budget; fetches in the background while the title screen plays SFX.
-    if (this.scene.cache.json.exists('__music_loading_' + key)) return
+    if (this.scene.cache.json.exists('__music_loading_' + key)) {
+      // Another scene is fetching it — retry so this scene attaches to the
+      // shared instance instead of missing out entirely.
+      if (attempt < 12) {
+        this.scene.time.delayedCall(400, () => this.initMusic(key, attempt + 1))
+      } else {
+        // Stale flag (loader scene died mid-fetch) — take over the load.
+        this.scene.cache.json.remove('__music_loading_' + key)
+        this.initMusic(key, 0)
+      }
+      return
+    }
     this.scene.cache.json.add('__music_loading_' + key, true)
     this.scene.load.audio(key, [`assets/audio/${key}.ogg`, `assets/audio/${key}.wav`])
     this.scene.load.once('complete', () => {
@@ -73,6 +85,16 @@ export class AudioManager {
 
   private attachMusic(key: string) {
     if (!this.scene.cache.audio.exists(key)) return
+    // Singleton across scenes: Phaser's SoundManager is global, so a loop
+    // started in Title survives into Game (and across RETRY restarts).
+    // Re-adding would stack a second loop of the same track — the audible clash.
+    const existing = this.scene.sound.getAll(key)[0] as any
+    if (existing) {
+      this.music = existing
+      existing.setVolume?.(this.musicEnabled ? 0.45 : 0)
+      if (this.musicEnabled && !existing.isPlaying) existing.play?.()
+      return
+    }
     this.music = this.scene.sound.add(key, { loop: true, volume: this.musicEnabled ? 0.45 : 0 })
     if (this.musicEnabled) {
       const tryPlay = () => {
