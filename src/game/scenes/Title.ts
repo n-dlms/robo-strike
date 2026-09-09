@@ -344,13 +344,18 @@ export class Title extends Phaser.Scene {
         }
       }
     }
-    // Player collision — enemies cannot pass through player (minDist 28, push enemy away, player immovable)
-    const playerMinDist = 28
+    // Player collision — per-bot radius from live sprite size, eased separation,
+    // fallback direction on exact overlap, solid through death fade.
     for (const bot of this.bots as any[]) {
+      if (!(bot as any).base?.active) continue
+      const radius = ((bot as any).base.displayWidth + this.playerBase.displayWidth) / 2
       const d = Phaser.Math.Distance.Between((bot as any).base.x, (bot as any).base.y, this.playerBase.x, this.playerBase.y)
-      if (d < playerMinDist && d > 0.1) {
-        const angle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, (bot as any).base.x, (bot as any).base.y)
-        const push = playerMinDist - d
+      if (d < radius) {
+        const angle =
+          d > 0.1
+            ? Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, (bot as any).base.x, (bot as any).base.y)
+            : Phaser.Math.FloatBetween(0, Math.PI * 2)
+        const push = (radius - d) * 0.6
         ;(bot as any).base.x += Math.cos(angle) * push
         ;(bot as any).base.y += Math.sin(angle) * push
         ;(bot as any).turret.x = (bot as any).base.x

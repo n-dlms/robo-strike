@@ -421,14 +421,20 @@ export class Game extends Phaser.Scene {
         }
       }
     }
-    // Player collision — enemies cannot pass through player (minDist 28, push enemy away, player immovable)
-    const playerMinDist = 28
+    // Player collision — enemies cannot pass through player. Radius is per-bot
+    // from live sprite size so hulls touch instead of interpenetrating;
+    // separation eases over ~2 frames; exact overlaps get a fallback direction.
+    // No alive-skip: dying bots stay solid through their fade.
     for (const bot of this.bots as any[]) {
-      if ((bot as any).alive === false) continue
+      if (!bot.base?.active) continue
+      const radius = (bot.base.displayWidth + this.playerBase.displayWidth) / 2
       const d = Phaser.Math.Distance.Between(bot.base.x, bot.base.y, this.playerBase.x, this.playerBase.y)
-      if (d < playerMinDist && d > 0.1) {
-        const angle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, bot.base.x, bot.base.y)
-        const push = playerMinDist - d
+      if (d < radius) {
+        const angle =
+          d > 0.1
+            ? Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, bot.base.x, bot.base.y)
+            : Phaser.Math.FloatBetween(0, Math.PI * 2)
+        const push = (radius - d) * 0.6
         bot.base.x += Math.cos(angle) * push
         bot.base.y += Math.sin(angle) * push
         bot.turret.x = bot.base.x
@@ -973,8 +979,15 @@ export class Game extends Phaser.Scene {
   private respawnEnemy(idx: number) {
     if (this.isGameOver) return
     const bot: any = this.bots[idx]
-    const x = Phaser.Math.Between(30, 290)
-    const y = Phaser.Math.Between(30, 120)
+    let x = Phaser.Math.Between(30, 290)
+    let y = Phaser.Math.Between(30, 120)
+    // Re-roll the teleport if it would plant the bot inside the player
+    const minSpawn = (bot.base.displayWidth + this.playerBase.displayWidth) / 2 + 10
+    for (let tries = 0; tries < 10; tries++) {
+      if (Phaser.Math.Distance.Between(x, y, this.playerBase.x, this.playerBase.y) >= minSpawn) break
+      x = Phaser.Math.Between(30, 290)
+      y = Phaser.Math.Between(30, 120)
+    }
     // delegate to bot's own respawn (handles health reset, bar, tint, scale, fire timer)
     if (typeof bot.respawn === 'function') {
       bot.respawn(this, x, y, this.betAmount, this.maxBet)
