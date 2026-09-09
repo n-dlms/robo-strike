@@ -403,15 +403,20 @@ export class Game extends Phaser.Scene {
       if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
     })
 
-    const minDist = 30
+    // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
         const b: any = this.bots[j]
+        if (!a.base?.active || !b.base?.active) continue
+        const radius = (a.base.displayWidth + b.base.displayWidth) / 2
         const d = Phaser.Math.Distance.Between(a.base.x, a.base.y, b.base.x, b.base.y)
-        if (d < minDist && d > 0.1) {
-          const angle = Phaser.Math.Angle.Between(b.base.x, b.base.y, a.base.x, a.base.y)
-          const push = (minDist - d) / 2
+        if (d < radius) {
+          const angle =
+            d > 0.1
+              ? Phaser.Math.Angle.Between(b.base.x, b.base.y, a.base.x, a.base.y)
+              : Phaser.Math.FloatBetween(0, Math.PI * 2)
+          const push = ((radius - d) / 2) * 0.6
           a.base.x += Math.cos(angle) * push
           a.base.y += Math.sin(angle) * push
           a.turret.x = a.base.x; a.turret.y = a.base.y
