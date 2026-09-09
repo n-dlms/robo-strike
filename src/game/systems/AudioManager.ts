@@ -113,15 +113,24 @@ export class AudioManager {
     this.scene.sound.play(key, { volume: config?.volume ?? 0.7, ...config })
   }
 
-  // For Title attract loop: ducks music -6dB 300ms
-  duckMusic() {
+  // Ducks music under SFX. Idempotent: re-fires while already ducked only
+  // extend the window instead of re-dipping, so rapid FIRE can't pump the bed.
+  private duckedUntil = 0
+  duckMusic(depth = 0.25, ms = 300) {
     if (!this.music || !this.musicEnabled) return
     const m = this.music as any
     const orig = 0.45
+    const now = this.scene.time.now
     try {
-      m.setVolume(orig * 0.25)
-      this.scene.time.delayedCall(300, () => {
-        if (this.musicEnabled) m.setVolume(orig)
+      if (now < this.duckedUntil) {
+        // Already ducked — just stretch the window, don't re-dip.
+        this.duckedUntil = now + ms
+        return
+      }
+      this.duckedUntil = now + ms
+      m.setVolume(orig * depth)
+      this.scene.time.delayedCall(ms, () => {
+        if (this.musicEnabled && this.scene.time.now >= this.duckedUntil) m.setVolume(orig)
       })
     } catch {}
   }

@@ -731,7 +731,7 @@ export class Game extends Phaser.Scene {
     // ---- Presentation: muzzle flash, recoil, shell toward the SELECTED tank ----
     const tip = this.getPlayerBarrelTip()
     this.audio.playSfx('sfx_fire', { volume: 0.25 })
-    this.audio.duckMusic()
+    this.audio.duckMusic(0.6, 120)
     this.cameras.main.shake(120, 0.008)
     this.tweens.add({ targets: [this.playerBase, this.playerTurret], y: this.playerBase.y - 2, duration: 60, yoyo: true, ease: 'Quad.easeOut' })
     const flash = this.add.image(tip.x, tip.y, 'muzzle_1')
