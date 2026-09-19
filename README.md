@@ -8,8 +8,8 @@
 
 [![RTP 95%](https://img.shields.io/badge/RTP-95%25-58ff9b?style=for-the-badge)](docs/MATH.md)
 [![Max Win 30x](https://img.shields.io/badge/MAX_WIN-30x-ffd94f?style=for-the-badge)](docs/MATH.md)
-[![Phaser 3.80](https://img.shields.io/badge/PHASER-3.80-4ff2e3?style=for-the-badge)](https://phaser.io)
-[![TypeScript](https://img.shields.io/badge/TYPESCRIPT-5.5-3178c6?style=for-the-badge)](https://www.typescriptlang.org)
+[![Phaser 3.90](https://img.shields.io/badge/PHASER-3.90-4ff2e3?style=for-the-badge)](https://phaser.io)
+[![TypeScript](https://img.shields.io/badge/TYPESCRIPT-5.9-3178c6?style=for-the-badge)](https://www.typescriptlang.org)
 [![License MIT](https://img.shields.io/badge/LICENSE-MIT-white?style=for-the-badge)](LICENSE)
 
 **[▶ PLAY NOW](https://robo-strike.robo-strike.workers.dev)**
@@ -96,7 +96,7 @@ Touch supported: tap tanks and buttons.
 ```sh
 npm install
 npm run dev        # standalone demo at :5173 (mock bank, crypto-RNG outcomes)
-npm test           # 63 suites: paytable math, ABI, bridge, manifest, session
+npm test           # 63 tests: paytable math, ABI, bridge, manifest, session
 npm run sim:rtp    # 1M-round RTP gate, exit 1 on fail
 npm run compile:sol  # solc compile gate for contracts/
 npm run budget     # wire-size gate, max 1.2MB gz
@@ -119,11 +119,11 @@ Chain Casino SDK deliverables:
 ## 🚀 Deploy
 
 ```sh
-npm run build && npx wrangler deploy   # Cloudflare Workers (primary)
-npx vercel --prod                      # Vercel (mirror)
+npm run build && npx wrangler deploy   # Cloudflare Workers (primary, live)
+npx vercel --prod                      # Vercel (mirror, not yet deployed)
 ```
 
-`game.manifest.json` is served same-origin on both. The jam widget
+`game.manifest.json` is served same-origin with the game. The jam widget
 (`https://jam.chain.wtf/widget.js`) is embedded in `index.html`.
 Initial wire is about **746 KB gz**, music lazy-loads after boot.
 

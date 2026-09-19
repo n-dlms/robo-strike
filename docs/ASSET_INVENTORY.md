@@ -57,10 +57,11 @@ public domain, or original work by the author.*
 | `public/assets/atlas/robo-atlas.png`, `robo-atlas.json` | Build artifact, CodeAndWeb Free Sprite Sheet Packer | Free tool, output unencumbered | Phaser JSON Hash, 1024×1024 |
 | `assets/palette/robo-strike.gpl` | Locked palette file | N/A | `#0a1a3f` `#4ff2e3` `#ff4fd8` `#ffd94f` `#58ff9b` `#ffffff` `#1a1a1a` |
 
-82 frames in a single 1024×1024 atlas: player 4, enemies 3×10, bunkers 3,
-shell 5, muzzle 2, explosions 10, coin 4, reticle 2, UI singles, background,
-scanline. All sprites use at most 7 colors plus alpha, validated with
-`scripts/assert_palette.py`.
+86 individual PNGs ship under `public/assets/raw` and load directly in
+`src/game/scenes/Boot.ts`. Every sprite uses at most 7 colors plus alpha,
+checked with `python3 scripts/assert_png.py` (palette, size, outline).
+An atlas pack (`public/assets/atlas/robo-atlas`, 66 frames) is kept as an
+unused build artifact.
 
 ---
 
@@ -71,6 +72,9 @@ scanline. All sprites use at most 7 colors plus alpha, validated with
 | `assets/audio/sfx_ui_blip.wav/.ogg` | ChipTone `blipSelect`, square 880Hz 0.07s ([itch.io](https://sfbgames.itch.io/chiptone), CC0 output) plus jsfxr ([sfxr.me](https://sfxr.me/), UNLICENSE) | CC0 / UNLICENSE | UI blip only, never wins |
 | `assets/audio/sfx_lockon.wav/.ogg` | jsfxr `powerUp` sweep 300 to 1200Hz, 0.35s | UNLICENSE | Rising lock-on arpeggio |
 | `assets/audio/sfx_fire.wav/.ogg` | Real tank cannon: OGA `cannon_fire_0` (CC0, Thimras) plus Freesound qubodup Howitzer Shot (CC0, US public domain) | CC0 | 0.38s mixed, highpass |
+| `assets/audio/sfx_fire_scout.wav/.ogg` | Scout pew: OGA Pew Laser fire sound, `laserpew_0` (CC0, sketcherskt) | CC0 | 0.45s |
+| `assets/audio/sfx_fire_bruiser.wav/.ogg` | Bruiser punch: OGA Laser_shooting_sx, `laser_shooting_sfx` (CC0, teckpow) | CC0 | 0.10s |
+| `assets/audio/sfx_fire_warlord.wav/.ogg` | Warlord heavy: OGA Doomsday Laser Cannon short (CC0, TAD), trimmed with fade | CC0 | 0.85s |
 | `assets/audio/sfx_whoosh.wav/.ogg` | jsfxr `hitHurt` noise doppler, 0.25s | UNLICENSE | Shell flight |
 | `assets/audio/sfx_clank.wav/.ogg` | ChipTone `hit` metal, square plus noise, 0.18s | CC0 | Armor hit |
 | `assets/audio/sfx_explosion_small.wav/.ogg` | Real grenade: Freesound Jean_Filho sci-fi grenade explosion (CC0) | CC0 | 0.62s, highpass 50, lowpass 9k |
@@ -79,13 +83,14 @@ scanline. All sprites use at most 7 colors plus alpha, validated with
 | `assets/audio/sfx_win.wav/.ogg` | Falling coins lot: OGA `coin_drop` (CC0) plus Freesound Breviceps coins (CC0) plus `coinsounds.zip` (CC0, Enci23), 5 layers | CC0 | 1.6s, loudnorm -14 |
 | `assets/audio/sfx_jackpot.wav/.ogg` | Lotto win: OGA Win sound (CC0) plus Freesound FunWithSound fanfare trumpets (CC0) | CC0 | 2.84s stereo fanfare |
 | `assets/audio/sfx_miss.wav/.ogg` | Losing jingle: OGA `losegamemusic` (CC0, Robin Lamb) | CC0 | 1.40s with fade |
+| `assets/audio/sfx_gameover.wav/.ogg` (plus `sfx_gameover_new` alias) | Game Over jingle: OGA GAMEOVER chiptune (CC0, zuvizu), trimmed with fade | CC0 | 3.2s |
 | `assets/audio/music_loop.wav/.ogg` | Action loop: OGA SimpleBeat (CC0, LushoGames), rock funk drums and bass | CC0 | 50s loop, ogg 630K |
 | `assets/audio/layers/kenney_chip_04.wav` (optional) | Kenney Casino Audio chip_04 ([kenney.nl](https://kenney.nl/assets/casino-audio)) | CC0 | Optional layer, 50 files |
 | `assets/audio/manifest.json` | Audio manifest: volumes and loop flag | Generated | Lengths and volumes follow the rows above |
 
-**Size budget:** win 23K ogg, jackpot 59K, miss 30K, explosions 9K/12K,
-coin tick 6K, music 630K: about 760K ogg total. Audio streams after boot and
-sits outside the initial wire budget (`npm run budget`).
+**Size budget:** win 24K ogg, jackpot 60K, miss 32K, explosions 12K/12K,
+coin tick 8K, music 632K: about 780K ogg for the listed set. Audio streams
+after boot and sits outside the initial wire budget (`npm run budget`).
 
 ---
 
@@ -113,5 +118,5 @@ sits outside the initial wire budget (`npm run budget`).
 
 - File: `assets/palette/robo-strike.gpl` (GIMP palette)
 - Colors: `#0a1a3f` `#4ff2e3` `#ff4fd8` `#ffd94f` `#58ff9b` `#ffffff` `#1a1a1a` (outline)
-- Check: `python3 scripts/assert_palette.py assets/art/raw/*.png --palette "#0a1a3f,#4ff2e3,#ff4fd8,#ffd94f,#58ff9b,#ffffff,#1a1a1a"`, no outside hex
+- Check: `python3 scripts/assert_png.py` runs palette, size, and outline checks
 - Rule: every sprite carries a 1px `#1a1a1a` outline on at least 75% of its perimeter

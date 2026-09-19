@@ -8,7 +8,7 @@ import pathlib, hashlib, sys
 from PIL import Image
 
 RAW = pathlib.Path("assets/art/raw")
-# Locked palette from docs/ASSET_INVENTORY.md + PLAYBOOK
+# Locked palette from docs/ASSET_INVENTORY.md
 PALETTE = {
     (10,26,63),   # #0a1a3f navy
     (79,242,227), # #4ff2e3 cyan
