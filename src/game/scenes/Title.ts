@@ -198,7 +198,9 @@ export class Title extends Phaser.Scene {
       const on = this.audio.toggleMusic()
       musicToggle.setAlpha(on ? 1 : 0.35)
     })
-    this.input.keyboard?.on('keydown-S', () => {
+    // NOTE: SFX toggle is N, not S — S is WASD-down in the Game scene and
+    // holding it would silently flip the SFX bus mid-fight.
+    this.input.keyboard?.on('keydown-N', () => {
       const on = this.audio.toggleSfx()
       sfxToggle.setAlpha(on ? 1 : 0.35)
     })

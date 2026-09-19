@@ -131,3 +131,28 @@
 - [ ] standalone playable outside iframe
 - [ ] jam widget embedded
 - [ ] submitted via jam.chain.wtf with public repo + README
+
+## 2026-09-12 — Gameplay bug-fix pass (user reports)
+
+Four bugs reported post-build, all fixed and verified (tsc clean, 63/63 vitest, build OK, GUI smoke 3 rounds / 0 console errors):
+
+1. **Bullet target-lock** — the shell was tweened to a fixed point (selected tank's
+   position captured at fire time); it could never hit another tank and flew to a
+   ghost point if the target moved. Rewritten as a free-flying shell along the
+   barrel direction with per-step proximity collision against ALL bots — it now
+   hits whoever's hull it touches first; MISS only when it reaches the border
+   untouched. If VRF pays but the shell touched nothing, presentation snaps to the
+   nearest alive tank (kill/glance visuals never fire on empty ground). Payout is
+   still VRF-only — the shell is presentation (cosmetic-separation invariant holds).
+   `applyOutcome` now takes (result, x, y, targetBot, hitIdx); respawn uses hitIdx.
+2. **Auto-aim ignored the pick** — barrel re-aimed at the closest bot every frame,
+   overriding the selected tank. Now tracks the SELECTED tank (1/2/3 or click),
+   falling back to nearest alive bot while the pick is dead/respawning.
+3. **Pass-through / ghost collisions** — dead bots kept wandering AND stayed solid
+   while invisible during the death fade + 760ms respawn window (invisible walls),
+   and player separation resolved only 60% of overlap per frame. Bots now freeze on
+   death (`alive` guard in Scout/Bruiser/Warlord update), both separation loops skip
+   dead bots, and the player-bot push resolves the full overlap each frame.
+4. **"SFX disturbed when shooting"** — the SFX hotkey was `S`, which is WASD-down:
+   holding S to dodge while firing silently toggled the SFX bus. Rebound to `N` in
+   Title + Game; docs/UI_AUDIO_TOGGLES.md updated.

@@ -2,8 +2,11 @@
 
 > Added 2026-09-01 per user request. Persisted to docs/ so implementation is not missed in Stage 3-4.
 > Status: **IMPLEMENTED** (Phase 3-4, 2026-09-05) — `src/game/systems/AudioManager.ts`,
-> `♫`/`🔊` chips in Title + Game HUD, keys `M`/`S`, persists `roboStrike_audio_v1`,
+> `♫`/`🔊` chips in Title + Game HUD, keys `M`/`N`, persists `roboStrike_audio_v1`,
 > instant mute, duck -6dB during fire. Verified in GUI smoke tests.
+> **2026-09-12 fix:** SFX hotkey moved `S` → `N` — `S` is WASD-down, so holding it
+> to dodge while firing silently toggled the SFX bus (the "sfx gets disturbed"
+> report). Both scenes (Title, Game) updated.
 
 ## Requirement
 - UI must provide **two independent toggles**: **Music** (loop `music_loop`) and **SFX** (all `sfx_*`).
@@ -14,7 +17,7 @@
 ## Where in UI
 - Top bar or HUD corner (next to bet/tank picker), 2 buttons: `♫` Music, `🔊` SFX.
 - Pressing mutes/unmutes instantly. Icon shows state: `♫` vs `♫̸` (or `🔊` vs `🔇`), with `aria-pressed` and tooltip.
-- Also accessible via keyboard: `M` = toggle Music, `S` = toggle SFX (or `N` for mute-all). Must not interfere with `Space/C/1-3` game keys.
+- Also accessible via keyboard: `M` = toggle Music, `N` = toggle SFX. Must not interfere with `Space/C/1-3/WASD` game keys.
 - On first load, if `snapshot.wallet.status !== 'ready'` still show toggles (they are local UI, not host).
 
 ## Behaviour

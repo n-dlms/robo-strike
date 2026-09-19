@@ -333,7 +333,9 @@ export class Game extends Phaser.Scene {
       const on = this.audio.toggleMusic()
       gMusic.setAlpha(on ? 1 : 0.35)
     })
-    this.input.keyboard?.on('keydown-S', () => {
+    // NOTE: SFX toggle is N, not S — S is WASD-down and holding it mid-fight
+    // would silently flip the SFX bus (the "sfx gets disturbed" bug).
+    this.input.keyboard?.on('keydown-N', () => {
       const on = this.audio.toggleSfx()
       gSfx.setAlpha(on ? 1 : 0.35)
     })
@@ -409,12 +411,15 @@ export class Game extends Phaser.Scene {
       if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
     })
 
-    // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap
+    // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap.
+    // Dead bots (death fade → respawn window) are ghost — invisible wrecks must
+    // not shove live tanks around.
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
         const b: any = this.bots[j]
         if (!a.base?.active || !b.base?.active) continue
+        if (a.alive === false || b.alive === false) continue
         const radius = (a.base.displayWidth + b.base.displayWidth) / 2
         const d = Phaser.Math.Distance.Between(a.base.x, a.base.y, b.base.x, b.base.y)
         if (d < radius) {
@@ -432,12 +437,13 @@ export class Game extends Phaser.Scene {
         }
       }
     }
-    // Player collision — enemies cannot pass through player. Radius is per-bot
-    // from live sprite size so hulls touch instead of interpenetrating;
-    // separation eases over ~2 frames; exact overlaps get a fallback direction.
-    // No alive-skip: dying bots stay solid through their fade.
+    // Player collision — enemies cannot pass through the player. Radius is per-bot
+    // from live sprite size; the FULL overlap is resolved every frame so a tank
+    // can never straddle the player across frames (pass-through feel). Dead bots
+    // (death fade → respawn window) are ghost: they're invisible wrecks.
+    // No bot movement this frame can outrun this push (bot speed ≤ ~1.1 px/frame).
     for (const bot of this.bots as any[]) {
-      if (!bot.base?.active) continue
+      if (!bot.base?.active || bot.alive === false) continue
       const radius = (bot.base.displayWidth + this.playerBase.displayWidth) / 2
       const d = Phaser.Math.Distance.Between(bot.base.x, bot.base.y, this.playerBase.x, this.playerBase.y)
       if (d < radius) {
@@ -445,7 +451,7 @@ export class Game extends Phaser.Scene {
           d > 0.1
             ? Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, bot.base.x, bot.base.y)
             : Phaser.Math.FloatBetween(0, Math.PI * 2)
-        const push = (radius - d) * 0.6
+        const push = radius - d + 0.5
         bot.base.x += Math.cos(angle) * push
         bot.base.y += Math.sin(angle) * push
         bot.turret.x = bot.base.x
@@ -468,17 +474,16 @@ export class Game extends Phaser.Scene {
     // Keep player health bar following player (40x4, larger than bots 24x3)
     this.updatePlayerHealthBar()
 
-    // Player barrel auto-detects closest alive bot and auto-aims for strike (you move body, barrel auto-aims)
+    // Player barrel tracks the SELECTED tank (1/2/3 or click) — picking is a real
+    // aim choice; falls back to nearest alive bot while the pick is dead/respawning.
     let closest: any = null
-    let closestDist = Infinity
-    this.bots.forEach((b: any) => {
-      if ((b as any).alive === false) return
-      const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
-      if (d < closestDist) { closestDist = d; closest = b }
-    })
-    // fallback to any if all dead (during explosion)
-    if (!closest) {
+    const picked: any = this.bots[this.selectedTank]
+    if (picked && picked.alive !== false && picked.base?.active) {
+      closest = picked
+    } else {
+      let closestDist = Infinity
       this.bots.forEach((b: any) => {
+        if (b.alive === false || !b.base?.active) return
         const d = Phaser.Math.Distance.Between(this.playerTurret.x, this.playerTurret.y, b.turret.x, b.turret.y)
         if (d < closestDist) { closestDist = d; closest = b }
       })
@@ -726,9 +731,6 @@ export class Game extends Phaser.Scene {
       )
       return
     }
-    const target: any = this.bots[this.selectedTank]
-    if (!target) return
-
     // Wager: ladder value in base units; host mode clamps to risk limits + balance.
     const dec = this.casino.decimals()
     let wager = parseUnits(BET_LADDER[this.betIdx], dec)
@@ -749,7 +751,8 @@ export class Game extends Phaser.Scene {
     this.roundInFlight = true
     const wagerFinal = wager
 
-    // ---- Presentation: muzzle flash, recoil, shell toward the SELECTED tank ----
+    // ---- Presentation: muzzle flash, recoil, shell down the barrel ----
+    const { width, height } = this.scale
     const tip = this.getPlayerBarrelTip()
     this.audio.playSfx('sfx_fire', { volume: 0.25 })
     this.audio.duckMusic(0.6, 120)
@@ -761,24 +764,6 @@ export class Game extends Phaser.Scene {
     flash.setDepth(14)
     this.time.delayedCall(80, () => flash.destroy())
 
-    const destX = target.turret.x
-    const destY = target.turret.y
-    const shell = this.add.image(tip.x, tip.y, 'shell')
-    shell.setScale(0.6)
-    shell.setDepth(11)
-    const trailEv = this.time.addEvent({
-      delay: 16,
-      loop: true,
-      callback: () => {
-        if (!shell.active) { trailEv.remove(); return }
-        const t = this.add.image(shell.x, shell.y, 'shell')
-        t.setScale(0.22)
-        t.setAlpha(0.55)
-        t.setDepth(10)
-        this.tweens.add({ targets: t, alpha: 0, scale: 0.12, duration: 160, onComplete: () => t.destroy() })
-      },
-    })
-
     // ---- Casino brain: VRF decides (host session or standalone crypto word) ----
     const placePromise = this.casino
       .placeRound(wagerFinal, this.selectedTank, this.overdriveOn)
@@ -787,33 +772,77 @@ export class Game extends Phaser.Scene {
         return null
       })
 
-    this.tweens.add({
-      targets: shell,
-      x: destX,
-      y: destY,
-      duration: 280,
-      ease: 'Linear',
-      onComplete: () => {
+    // Free-flying shell: travels along the barrel and hits WHOEVER it touches —
+    // no target lock. VRF still picks the outcome/payout; the shell only chooses
+    // where the presentation lands (cosmetic, never gates payout).
+    const shell = this.add.image(tip.x, tip.y, 'shell')
+    shell.setScale(0.6)
+    shell.setDepth(11)
+    const shellAng = this.playerTurret.rotation - Math.PI / 2
+    const shellSpeed = 0.55 // px per ms — matches the old ~280ms flight feel
+    let contact: { bot: any; idx: number; x: number; y: number } | null = null
+    const stepEv = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        if (!shell.active) { stepEv.remove(); return }
+        const step = shellSpeed * 16
+        shell.x += Math.cos(shellAng) * step
+        shell.y += Math.sin(shellAng) * step
+        const t = this.add.image(shell.x, shell.y, 'shell')
+        t.setScale(0.22)
+        t.setAlpha(0.55)
+        t.setDepth(10)
+        this.tweens.add({ targets: t, alpha: 0, scale: 0.12, duration: 160, onComplete: () => t.destroy() })
+        // Contact check against ALL bots — first hull the shell touches wins.
+        for (let i = 0; i < this.bots.length; i++) {
+          const b: any = this.bots[i]
+          if (!b.base?.active || b.alive === false) continue
+          const r = b.base.displayWidth * 0.42 + 3
+          if (Phaser.Math.Distance.Between(shell.x, shell.y, b.base.x, b.base.y) < r) {
+            contact = { bot: b, idx: i, x: b.base.x, y: b.base.y }
+            break
+          }
+        }
+        const offscreen = shell.x < 2 || shell.x > width - 2 || shell.y < 2 || shell.y > height - 2
+        if (!contact && !offscreen) return
+        stepEv.remove()
+        const landed = contact
+          ? { x: contact.x, y: contact.y }
+          : { x: Phaser.Math.Clamp(shell.x, 6, width - 6), y: Phaser.Math.Clamp(shell.y, 6, height - 6) }
         shell.destroy()
-        trailEv.remove()
         // Shell may arrive before settle (host tx ~seconds) — VRF suspense ticker
         this.vrfTicker?.setText('VRF ...').setVisible(true).setAlpha(1)
         this.tweens.add({ targets: this.vrfTicker, alpha: 0.45, duration: 300, yoyo: true, repeat: -1 })
         placePromise.then((result) => {
           this.tweens.killTweensOf(this.vrfTicker ?? [])
           this.vrfTicker?.setVisible(false).setAlpha(1)
-          if (result) this.applyOutcome(result, destX, destY, target)
-          else {
+          if (!result) {
             this.roundInFlight = false
             this.showBanner('ROUND FAILED', PALETTE_HEX.magenta, 900)
+            return
           }
+          // No physical contact but VRF paid: land presentation on the nearest
+          // alive tank so kill/glance visuals never fire on empty ground.
+          let bot = contact?.bot ?? null
+          let idx = contact?.idx ?? -1
+          if (!bot && result.outcome > 0) {
+            let best = Infinity
+            this.bots.forEach((b: any, i: number) => {
+              if (b.alive === false || !b.base?.active) return
+              const d = Phaser.Math.Distance.Between(landed.x, landed.y, b.base.x, b.base.y)
+              if (d < best) { best = d; bot = b; idx = i }
+            })
+          }
+          if (!bot) { bot = this.bots[this.selectedTank]; idx = this.selectedTank }
+          this.applyOutcome(result, (bot as any).base.x, (bot as any).base.y, bot, idx)
         })
       },
     })
   }
 
   /** Map a settled VRF outcome to tank-town presentation. Movement/AI never gates payout. */
-  private applyOutcome(result: RoundResult, x: number, y: number, target: any) {
+  private applyOutcome(result: RoundResult, x: number, y: number, target: any, hitIdx: number) {
     const dec = this.casino.decimals()
 
     // ---- session stats + streak escalation (cosmetic only — VRF untouched) ----
@@ -916,7 +945,7 @@ export class Game extends Phaser.Scene {
             onComplete: () => coin.destroy(),
           })
         }
-        this.time.delayedCall(760, () => this.respawnEnemy(this.selectedTank))
+        this.time.delayedCall(760, () => this.respawnEnemy(hitIdx))
       } else {
         this.audio.playSfx('sfx_win', { volume: 0.55 })
         for (let c = 0; c < 4; c++) this.time.delayedCall(c * 70, () => this.audio.playSfx('sfx_coin_tick', { volume: 0.5 }))
@@ -936,7 +965,7 @@ export class Game extends Phaser.Scene {
             onComplete: () => coin.destroy(),
           })
         }
-        this.time.delayedCall(760, () => this.respawnEnemy(this.selectedTank))
+        this.time.delayedCall(760, () => this.respawnEnemy(hitIdx))
       }
     } else {
       // GLANCE — grazed hull: flash + small explosion, tank survives

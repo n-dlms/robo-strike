@@ -78,6 +78,8 @@ export class Bruiser {
   }
 
   update(scene: Phaser.Scene, playerX: number, playerY: number) {
+    // Dead bots are a fading wreck — no wandering, no aiming, no pushing
+    if (!this.alive) return
     const angle = Phaser.Math.Angle.Between(this.base.x, this.base.y, this.targetX, this.targetY)
     const dist = Phaser.Math.Distance.Between(this.base.x, this.base.y, this.targetX, this.targetY)
     if (dist < 4) {
