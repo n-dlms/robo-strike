@@ -22,9 +22,9 @@
 
 <div align="center">
 
-![Gameplay](docs/screenshots/gameplay-ww2.png)
+![Paytable](docs/screenshots/paytable.png)
 
-*Live arena: real WW2 armor, CRT scanlines*
+*In-game paytable: exact odds per tank, derived from the paytable source*
 
 </div>
 
