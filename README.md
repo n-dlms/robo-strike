@@ -22,9 +22,9 @@
 
 <div align="center">
 
-| ![Gameplay](docs/screenshots/gameplay-ww2.png) | ![Jackpot](docs/screenshots/jackpot-flash.png) |
-|:---:|:---:|
-| *Live arena: real WW2 armor, CRT scanlines* | *Jackpot: coin fountain, flash, count-up* |
+![Gameplay](docs/screenshots/gameplay-ww2.png)
+
+*Live arena: real WW2 armor, CRT scanlines*
 
 </div>
 
