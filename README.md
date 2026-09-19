@@ -22,9 +22,9 @@
 
 <div align="center">
 
-| ![Title screen](docs/screenshots/title.png) | ![Gameplay](docs/screenshots/gameplay-ww2.png) |
-|:---:|:---:|
-| *Title: attract mode, live arena behind the glass* | *Gameplay: real WW2 armor, CRT scanlines* |
+![Gameplay](docs/screenshots/gameplay-ww2.png)
+
+*Live arena: real WW2 armor, CRT scanlines*
 
 </div>
 
