@@ -28,5 +28,5 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [Boot, Title, Game],
 }
 
-// Exposed for headless smoke tests (scripts/gui-smoke.mjs) — not used by gameplay.
+// Exposed for headless smoke tests (scripts/gui-smoke.mjs). Unused by gameplay.
 ;(window as any).__ROBO = new Phaser.Game(config)

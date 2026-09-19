@@ -1,4 +1,4 @@
-// Locked palette: 6 + outline — 1px #1a1a1a rule everywhere
+// Locked palette: 6 colors plus outline. Every sprite uses a 1px #1a1a1a outline.
 export const PALETTE = {
   navy: 0x0a1a3f,
   cyan: 0x4ff2e3,

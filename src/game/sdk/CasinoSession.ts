@@ -1,12 +1,12 @@
 // ============================================================================
-// CasinoSession — round orchestrator for both runtime modes.
+// CasinoSession, round orchestrator for both runtime modes.
 //
 // HOST mode (game embedded in the casino iframe):
 //   openSession(gameData=uint8 tankId|OD) → watch snapshots for the settled row
 //   → decode gameState (randomness present) → outcome → caller animates →
 //   revealOutcome (mandatory: releases withheld credits, 2026.07.02 breaking).
 //
-// STANDALONE mode (opened directly as a URL — jam "standalone playable" gate):
+// STANDALONE mode (opened directly as a URL):
 //   Same paytable + mapper, entropy from crypto.getRandomValues (32 uniform
 //   bytes = uint256 in [0, 2^256)). No Math.random anywhere (lint:rng gate).
 //   Mock balance so the full loop is playable without a wallet.
@@ -66,7 +66,7 @@ export class CasinoSession {
     for (const fn of this.listeners) fn(this)
   }
 
-  /** Connect to host if framed. Never throws — falls back to standalone demo. */
+  /** Connect to host if framed. Never throws, falls back to standalone demo. */
   async init(): Promise<void> {
     if (this.mode !== 'host') return
     try {
@@ -77,7 +77,7 @@ export class CasinoSession {
       })
       await this.conn.ready(5000)
     } catch {
-      // Host never handshaked (opened standalone / dev server) — degrade quietly.
+      // Host never handshaked (opened standalone / dev server), degrade quietly.
       this.conn?.destroy()
       this.conn = undefined
       ;(this as { mode: 'host' | 'standalone' }).mode = 'standalone'
@@ -118,7 +118,7 @@ export class CasinoSession {
     return this.walletReady
   }
 
-  /** Uniform uint256 from crypto — the standalone stand-in for Chain VRF. */
+  /** Uniform uint256 from crypto, the standalone stand-in for Chain VRF. */
   private static randomWord(): bigint {
     const buf = new Uint8Array(32)
     crypto.getRandomValues(buf)
@@ -184,7 +184,7 @@ export class CasinoSession {
       })
   }
 
-  /** Poll/observe snapshots until the session row settles (derive, never accumulate). */
+  /** Poll snapshots until the session row settles. */
   private awaitSettledRow(sessionKey: string): Promise<HostSnapshotV1['sessions']['items'][number]> {
     const check = (): HostSnapshotV1['sessions']['items'][number] | undefined => {
       const row = this.snapshot?.sessions.items.find((i) => i.sessionKey === sessionKey)
@@ -260,7 +260,7 @@ export class CasinoSession {
     }
   }
 
-  /** Mandatory after the win animation — releases host-withheld credits. */
+  /** Mandatory after the win animation, releases host-withheld credits. */
   async reveal(sessionId: string | undefined): Promise<void> {
     try {
       if (this.mode === 'host' && sessionId && this.conn?.hostApi) {

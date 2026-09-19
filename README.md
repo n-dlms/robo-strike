@@ -1,101 +1,101 @@
-# ROBO STRIKE — Retro Tank Casino (Chain Jam Vol. 1)
+# ROBO STRIKE: Retro Tank Casino (Chain Jam Vol. 1)
 
-> Retro CRT tank casino: pick your volatility, fire, VRF decides — 95% RTP, 30× jackpots, pixel-perfect juice.
+> Retro CRT tank casino: pick your volatility, fire, VRF decides. 95% RTP, 30x jackpots.
 
-**Play:** https://robo-strike.pages.dev *(deploy on submit — see Deploy below)*
-**Stack:** Phaser 3.90 · Vite 5 · TypeScript 5 · Chain Casino SDK (`ICasinoGameV2`)
+**Play:** https://robo-strike.robo-strike.workers.dev
+**Stack:** Phaser 3.80, Vite 5, TypeScript 5.5, Chain Casino SDK (`ICasinoGameV2`)
 
 ## The game
 
-Command robot tanks in a CRT arcade. Set your bet, pick 1 of 3 enemy tanks — your
-**volatility choice, not skill** — and FIRE. Chain VRF settles the round instantly;
-the arena, tank movement and return fire are pure presentation and never gate a payout.
-Press **T** for the in-game paytable (exact odds per tank). Session stats, biggest win
-and win streaks persist between visits — purely cosmetic, never touching the VRF path.
+Command a WW2 tank in a CRT arena. Set your bet, pick 1 of 3 enemy tanks, and FIRE.
+Your pick is a volatility choice, not skill: Chain VRF settles every round instantly.
+Tank movement and return fire are presentation only and never affect a payout.
+Press **T** for the in-game paytable with exact odds per tank. Session stats, biggest
+win, and win streaks persist between visits. They are cosmetic and never touch the
+VRF path.
 
-| Tank | Volatility | Paytable (probability × multiplier) | RTP |
+![Title screen](docs/screenshots/title.png)
+![Gameplay](docs/screenshots/gameplay-ww2.png)
+
+| Tank | Volatility | Paytable (probability x multiplier) | RTP |
 |------|-----------|--------------------------------------|-----|
-| SCOUT | low | 55%×0 · 30%×0.7 · 10%×2 · 4%×6 · 1%×30 | 95% |
-| BRUISER | medium | 65%×0 · 20%×0.9 · 9%×3 · 5%×7 · 1%×15 | 95% |
-| WARLORD | high | 78%×0 · 12%×1 · 6%×6 · 3%×12 · 1%×11 | 95% |
+| SCOUT | low | 55%x0, 30%x0.7, 10%x2, 4%x6, 1%x30 | 95% |
+| BRUISER | medium | 65%x0, 20%x0.9, 9%x3, 5%x7, 1%x15 | 95% |
+| WARLORD | high | 78%x0, 12%x1, 6%x6, 3%x12, 1%x11 | 95% |
 
-**OVERDRIVE** (optional, toggle with `O` before firing): on wins ≥2×, 40% chance to
-multiply the win ×2.5, else bust to 0. `E = 0.4 × 2.5 = 1.0` exactly — EV-neutral for
-any strategy (martingale side-bet), so RTP stays 95% no matter how you use it.
+**OVERDRIVE** (optional, toggle with `O` before firing): on wins of 2x or more, a 40%
+chance to multiply the win by 2.5, else the win is lost. `0.4 x 2.5 = 1.0` exactly,
+so it is EV-neutral and RTP stays 95% however you use it.
 
-## Math & fairness (declared math = actual paytable)
+## Math and fairness
 
-- **RTP is exactly 19/20 per tank** — rational proof in `docs/MATH.md`, asserted
-  bit-exactly in `tests/paytables.test.ts` (integer arithmetic only, no floats).
-- **Outcomes are unbiased BigInt thresholds**: `T_i = floor(b_i·2^256/100)`,
-  `outcome = first i where v < T_i`. Full partition of `[0, 2^256)`, no gaps, no
-  modulo bias, no `Math.random` in the outcome path (CI-gated: `npm run lint:rng`).
-- **Verified by simulation**: `npm run sim:rtp` — 1M rounds/tank, seeded splitmix64
-  synthesizing uniform uint256 words, asserts RTP 93–98 hard + ±0.5pp of 95, per-bucket
-  frequency ±0.3pp, and Overdrive EV = 1.0 in never/always/mix modes. Exit 1 on any
-  failure. Latest run: **ALL PROFILES PASS** (transcript in `docs/MATH.md §7`).
+- **RTP is exactly 19/20 on every tank.** Rational proof in `docs/MATH.md`, asserted
+  with integer arithmetic in `tests/paytables.test.ts`.
+- **Outcomes are unbiased BigInt thresholds**: `T_i = floor(b_i * 2^256 / 100)`,
+  first `i` with `v < T_i` wins. Full partition of `[0, 2^256)`: no gaps, no modulo
+  bias, no `Math.random` in the outcome path (enforced by `npm run lint:rng`).
+- **Verified by simulation**: `npm run sim:rtp` plays 1M rounds per tank with seeded
+  splitmix64 words and asserts RTP within 93-98, within 0.5pp of 95, per-bucket
+  frequencies within 0.3pp, and Overdrive EV = 1.0. Non-zero exit on any failure.
 - **Contract mirror**: `contracts/RoboStrike.sol` stores the same thresholds as
-  literals — CI-asserted equal to the TypeScript (`npm test`), compiled with solc
-  0.8.36 viaIR (`npm run compile:sol`).
+  literals, asserted equal to the TypeScript (`npm test`), compiled with solc 0.8.36
+  (`npm run compile:sol`).
+- **Verified on-chain**: 60 simulator rounds with payouts exactly equal to the
+  TypeScript math, plus the full bet to reveal flow through the real SDK bridge
+  in the official simulator harness (`scripts/harness-e2e.mjs`).
 
 ## Deliverables (Chain Casino SDK)
 
 | Deliverable | Path |
 |-------------|------|
-| Contract (`ICasinoGameV2`, instant pattern) | `contracts/RoboStrike.sol` + vendored `contracts/ICasinoGameV2.sol` |
-| Static frontend (bridge guest, no wallet code) | `src/` — `src/game/sdk/` hosts the vendored bridge (penpal), `CasinoSession` orchestrator |
+| Contract (`ICasinoGameV2`, instant pattern) | `contracts/RoboStrike.sol` and vendored `contracts/ICasinoGameV2.sol` |
+| Static frontend (bridge guest, no wallet code) | `src/`, bridge in `src/game/sdk/` (penpal), `CasinoSession` orchestrator |
 | Manifest (same origin, validator-passed) | `public/game.manifest.json` |
-
-Run it:
 
 ```sh
 npm install
-npm run dev        # standalone demo mode at :5173 (mock bank, crypto-RNG outcomes)
-npm test              # 63 vitest: paytables math, ABI, bridge, manifest, session loop
-npm run sim:rtp       # 1M-round RTP gate (exit 1 on fail)
-npm run compile:sol   # solc compile gate for contracts/
-npm run budget        # wire-size gate ≤1.2MB (~737KB gz)
-npm run gen:bg        # regenerate the procedural battlefield
-npm run sim:roundtrip # 60 real on-chain rounds vs TS paytable math (needs local stack)
-npm run sim:stuck     # stuck-randomness chaos test (mine past deadline → cancel → refund)
-npm run build         # production build to dist/
-
-Verification highlights (2026-09-06): 60/60 on-chain rounds matched the TypeScript
-paytable math exactly; full bet → WAITING_RANDOMNESS → reveal flow ran through the
-real SDK bridge inside the official simulator harness (`scripts/harness-e2e.mjs`); the
-1M-round simulation gate passed for all tanks including Overdrive EV-neutrality.
+npm run dev        # standalone demo at :5173 (mock bank, crypto-RNG outcomes)
+npm test           # 63 vitest suites: paytable math, ABI, bridge, manifest, session
+npm run sim:rtp    # 1M-round RTP gate, exit 1 on fail
+npm run compile:sol  # solc compile gate for contracts/
+npm run budget     # wire-size gate, max 1.2MB gz
+npm run gen:bg      # regenerate the procedural battlefield
+npm run sim:roundtrip  # on-chain rounds vs TS paytable math (needs local stack)
+npm run sim:stuck   # stuck-randomness recovery test (cancel past deadline, refund)
+npm run build      # production build to dist/
 ```
 
-Local casino simulator (full wager round-trips):
-see `vendor/casino-sdk` — `npm install && npm start` → harness at `:3300`;
-drop `contracts/RoboStrike.sol` into `simulator/contracts/` for auto-deploy.
+Local casino simulator (full wager round-trips): see `vendor/casino-sdk`
+(gitignored SDK checkout). Start it, drop `contracts/RoboStrike.sol` into
+`simulator/contracts/`, and the watcher deploys and registers it.
 
 ## Controls
 
-`1/2/3` or click a tank — pick volatility · `,`/`.` — bet down/up · `O` — Overdrive ·
-`T` — paytable/odds panel · `SPACE`/`ENTER`/`FIRE` button — fire ·
-`WASD`/arrows/click — move (cosmetic) · `M`/`S` — music/SFX toggles.
-Touch: tap tanks/buttons.
+`1/2/3` or click a tank: pick volatility. `,`/`.`: bet down/up. `O`: Overdrive.
+`T`: paytable panel. `SPACE`/`ENTER`/FIRE button: fire.
+`WASD`/arrows/click: move (cosmetic). `M`/`N`: music/SFX toggles.
+Touch: tap tanks and buttons.
 
-## Assets & licenses
+## Assets and licenses
 
-All assets are $0 commercial-safe — full per-file inventory with source URLs and
-verification dates in `docs/ASSET_INVENTORY.md`. Tank sprites are Bleed's WW2
-top-down tank pack ([OGA](https://opengameart.org/content/tank-pack-bleeds-game-art)),
-**CC-BY 3.0** — attribution: **"Tanks" by Bleed (opengameart.org), CC-BY 3.0,
-modified (cropped/recolored/downscaled)**. Fonts: Press Start 2P + VT323 (OFL 1.1).
-SFX/music: CC0 (OGA/Freesound/Pixabay) per `docs/PLAYBOOK.md §2e`. Fonts: Press Start 2P + VT323
-(OFL 1.1). SFX/music: CC0 (OGA/Freesound/Pixabay) per `docs/PLAYBOOK.md §2e`.
-Decisions log: `docs/PROGRESS.md`. Research: `docs/research/`.
+All assets are commercial-safe. Full per-file inventory with source URLs is in
+`docs/ASSET_INVENTORY.md`. Tank sprites are Bleed's WW2 top-down tank pack
+([OGA](https://opengameart.org/content/tank-pack-bleeds-game-art)), **CC-BY 3.0**.
+Attribution: "Tanks" by Bleed (opengameart.org), CC-BY 3.0, modified
+(cropped, recolored, downscaled). Fonts: Press Start 2P and VT323 (OFL 1.1).
+SFX and music: CC0 (OGA, Freesound, Pixabay).
 
 ## Deploy
 
-- **Primary:** Cloudflare Workers static assets — `npm run build && npx wrangler deploy` (`wrangler.toml` configured, `not_found_handling = "404-page"` so the manifest is never shadowed).
-- **Mirror:** Vercel — `npx vercel --prod` (`vercel.json` configured, no SPA rewrite).
-- `game.manifest.json` is served same-origin at `/game.manifest.json` on both (SDK `assertSameOriginUrls`).
+- **Primary:** Cloudflare Workers static assets:
+  `npm run build && npx wrangler deploy` (`wrangler.toml` configured,
+  `not_found_handling = "404-page"` so the manifest is never shadowed).
+- **Mirror:** Vercel: `npx vercel --prod` (`vercel.json` configured, no SPA rewrite).
+- `game.manifest.json` is served same-origin at `/game.manifest.json` on both
+  (SDK `assertSameOriginUrls`).
 - The jam widget (`https://jam.chain.wtf/widget.js`) is embedded in `index.html`.
 
 ## Load budget
 
-Initial wire ≈ **706 KB gz** (JS 358K + sprites ~80K + SFX 231K + html/manifest);
-the 625 KB music loop lazy-loads after boot (`npm run budget` gates this).
+Initial wire is about **746 KB gz** (JS plus sprites plus SFX plus html/manifest).
+The music loop lazy-loads after boot (`npm run budget` gates this).

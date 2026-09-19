@@ -3,23 +3,23 @@ pragma solidity ^0.8.30;
 
 import "./ICasinoGameV2.sol";
 
-/// @title RoboStrikeGame — retro tank casino (Chain Jam Vol. 1)
-/// @notice Instant game: pick 1 of 3 robot tanks (volatility choice, NOT skill),
+/// @title RoboStrikeGame, retro tank casino (Chain Jam Vol. 1)
+/// @notice Instant game: pick 1 of 3 WW2 tanks (volatility choice, NOT skill),
 ///         FIRE once, Chain VRF decides. RTP = 95% on every tank.
 ///         SCOUT   [55,85,95,99,100]% → ×0, ×0.7, ×2,  ×6,  ×30  (Σ = 0.95 exactly)
 ///         BRUISER [65,85,94,99,100]% → ×0, ×0.9, ×3,  ×7,  ×15  (Σ = 0.95 exactly)
 ///         WARLORD [78,90,96,99,100]% → ×0, ×1,   ×6,  ×12, ×11  (Σ = 0.95 exactly)
 ///         Overdrive (post-win ≥2×, committed in gameData before VRF): 40% → ×2.5,
-///         else forfeit win. E = 0.4·2.5 = 1.0 exactly — EV-neutral, RTP unchanged
+///         else forfeit win. E = 0.4·2.5 = 1.0 exactly, EV-neutral, RTP unchanged
 ///         for any strategy (linearity of expectation; martingale side-bet).
 /// @dev Outcome mapping is unbiased BigInt thresholds: T_i = floor(b_i·2^256/100),
 ///      outcome = first i where v < T_i. No floats, no modulo bias (2^256 domain
-///      is partitioned exactly; floor error ≤ 1/2^256 per threshold — see
+///      is partitioned exactly; floor error ≤ 1/2^256 per threshold, see
 ///      scripts/simulate-rtp.ts 1M-round gate + tests/paytables.test.ts).
 ///      Overdrive sub-roll derives from the SAME VRF word:
 ///      v_od = uint256(keccak256(abi.encode(randomness, "ROBO_OVERDRIVE")))
-///      (single-VRF instant pattern; Discord Q14 pending — if the SDK team
-///      prefers a second VRF step, only this function changes).
+///      (single-VRF instant pattern: only this function would change if a
+///      second VRF step were ever needed).
 contract RoboStrikeGame is ICasinoGameV2 {
     // ---- gameData: 32-byte ABI word of a single uint8 (same as the SDK coinflip
     // ---- example's encodeAbiParameters output): byte 31 = tankId (0=SCOUT,
@@ -34,11 +34,11 @@ contract RoboStrikeGame is ICasinoGameV2 {
     string internal constant OD_SALT = "ROBO_OVERDRIVE";
 
     // ---- Paytable thresholds: floor(b·2^256/100) as literals (audit copy-paste,
-    // ---- identical to src/config/paytables.ts THRESHOLDS — CI-asserted). ----
+    // ---- identical to src/config/paytables.ts THRESHOLDS, CI-asserted). ----
     // 2^256 overflows uint256: the last threshold is the sentinel
     // type(uint256).max handled with an INCLUSIVE check on the final bucket.
     // JS domain [0, 2^256) with T_last=2^256 exclusive ≡ Sol domain
-    // [0, 2^256-1] with sentinel inclusive — no value maps differently.
+    // [0, 2^256-1] with sentinel inclusive, no value maps differently.
     uint256 internal constant SCOUT_T0 =
         63685649080523907482964041754778349319298491566102310221701671204352221301964;
     uint256 internal constant SCOUT_T1 =
@@ -99,14 +99,14 @@ contract RoboStrikeGame is ICasinoGameV2 {
         if (tank > MAX_TANK) revert RoboStrikeGame__InvalidGameData();
     }
 
-    /// @notice Unbiased threshold mapping — mirrors mapVrfToOutcome in TS exactly.
+    /// @notice Unbiased threshold mapping, mirrors mapVrfToOutcome in TS exactly.
     function _mapOutcome(uint256 v, uint8 tank) internal pure returns (uint8 outcome) {
         if (tank == TANK_SCOUT) {
             if (v < SCOUT_T0) return 0;
             if (v < SCOUT_T1) return 1;
             if (v < SCOUT_T2) return 2;
             if (v < SCOUT_T3) return 3;
-            return 4; // sentinel bucket: v ∈ [SCOUT_T3, 2^256) — inclusive top
+            return 4; // sentinel bucket: v in [SCOUT_T3, 2^256), inclusive top
         }
         if (tank == TANK_BRUISER) {
             if (v < BRUISER_T0) return 0;
@@ -123,7 +123,7 @@ contract RoboStrikeGame is ICasinoGameV2 {
         return 4;
     }
 
-    /// @notice Base multiplier bps per (tank, outcome) — paytable single source.
+    /// @notice Base multiplier bps per (tank, outcome), paytable single source.
     function _multBps(uint8 tank, uint8 outcome) internal pure returns (uint256) {
         if (tank == TANK_SCOUT) {
             if (outcome == 1) return MULT_SCOUT_GLANCE;
@@ -182,13 +182,13 @@ contract RoboStrikeGame is ICasinoGameV2 {
         // Top tier (jackpot) probability only: 1% = 0.01e18 WAD on every tank.
         probabilityWad = 1e16;
         expectedPayout = (wager * RTP_BPS) / BPS_DEN; // 0.95 × wager
-        // Max payout 30× < 100× heavy-tail threshold — no tiered reserve.
+        // Max payout 30× < 100× heavy-tail threshold, no tiered reserve.
         subJackpotVarianceScaled = 0;
     }
 
     /// @notice Instant pattern: validate, reserve worst-case profit, request VRF.
-    /// @dev Called twice by the facet (sessionId==0 simulation, then real id) —
-    ///      pure function of ctx fields, no state, consistent across both calls.
+    /// @dev Called twice by the facet (sessionId==0 simulation, then real id).
+    ///      Pure function of ctx fields, no state, consistent across both calls.
     function onSessionStart(SessionContext calldata ctx) external view returns (StepResult memory sr) {
         if (ctx.gameData.length != 32) revert RoboStrikeGame__InvalidGameData();
         uint8 raw = uint8(ctx.gameData[31]);
@@ -205,7 +205,7 @@ contract RoboStrikeGame is ICasinoGameV2 {
         sr.requestRandomnessNow = true;
     }
 
-    /// @notice Pure instant game — no mid-round player action exists.
+    /// @notice Pure instant game, no mid-round player action exists.
     function onPlayerAction(SessionContext calldata, bytes calldata) external pure returns (StepResult memory) {
         revert RoboStrikeGame__NoPlayerAction();
     }

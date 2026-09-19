@@ -6,7 +6,7 @@
   "locales": {
     "en": {
       "name": "ROBO STRIKE",
-      "description": "Retro CRT tank casino: pick 1 of 3 robot tanks (SCOUT low, BRUISER mid, WARLORD high volatility), set your bet, FIRE once — Chain VRF settles instantly via BigInt thresholds. 95% RTP, up to 30x, optional EV-neutral Overdrive."
+      "description": "Retro CRT tank casino: pick 1 of 3 WW2 tanks (SCOUT low, BRUISER mid, WARLORD high volatility), set your bet, FIRE once. Chain VRF settles instantly via BigInt thresholds. 95% RTP, up to 30x, optional EV-neutral Overdrive."
     }
   },
   "presentation": {

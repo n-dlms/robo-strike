@@ -1,5 +1,5 @@
 // ============================================================================
-// Guest bridge — Penpal connection to the casino host (vendored pattern from
+// Guest bridge, Penpal connection to the casino host (vendored pattern from
 // casino-sdk src/guest.ts, Penpal 7.x). Runs only when the game is embedded in
 // the host iframe; standalone (window.parent === window.self) is a first-class
 // mode and never touches this module.
@@ -8,7 +8,7 @@
 import { WindowMessenger, connect, type Connection } from 'penpal'
 import type { GuestApiV1, HostApiV1, HostSnapshotV1 } from './types'
 
-/** document.referrer origin when parseable (prod), else '*' (dev fallback) — verbatim SDK behavior. */
+/** document.referrer origin when parseable (prod), else '*' (dev fallback), verbatim SDK behavior. */
 const getAllowedParentOrigins = (): string[] => {
   try {
     if (document.referrer) return [new URL(document.referrer).origin]
@@ -31,7 +31,7 @@ export const inHostIframe = (): boolean => {
   try {
     return window.parent !== window.self
   } catch {
-    return true // cross-origin access threw — we are framed
+    return true // cross-origin access threw: we are framed
   }
 }
 
@@ -46,9 +46,8 @@ export interface HostConnection {
 
 /**
  * Connect and keep the latest snapshot. The game reads `connection.snapshot`
- * reactively ( polled in scene update or via onChange callback ) and calls
- * hostApi methods for the bet lifecycle. Must call destroy() on scene shutdown
- * (HMR/teardown leak guard per GETTING_STARTED chaos checklist).
+ * reactively (polled in scene update or via onChange callback) and calls
+ * hostApi methods for the bet lifecycle. Call destroy() on scene shutdown.
  */
 export const createHostConnection = (onChange?: (s: HostSnapshotV1 | null) => void): HostConnection => {
   const state: HostConnection = {
@@ -78,13 +77,13 @@ export const createHostConnection = (onChange?: (s: HostSnapshotV1 | null) => vo
     },
   })
 
-  // penpal resolves with the host's API methods — store them for placeRound/reveal
+  // penpal resolves with the host's API methods: store them for placeRound/reveal.
   connection.promise
     .then((api) => {
       state.hostApi = api as HostApiV1
     })
     .catch(() => {
-      /* handshake failed — CasinoSession falls back to standalone */
+      /* handshake failed, CasinoSession falls back to standalone */
     })
 
   return state
@@ -124,7 +123,7 @@ export const computeMaxWager = (
   return riskBound
 }
 
-/** parseUnits(18) for wager strings — minimal, no viem dependency. */
+/** parseUnits(18) for wager strings, minimal, no viem dependency. */
 export const parseUnits = (human: string, decimals = 18): bigint => {
   const neg = human.trim().startsWith('-')
   const clean = human.trim().replace('-', '')

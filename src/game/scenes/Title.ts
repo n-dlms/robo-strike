@@ -19,15 +19,16 @@ export class Title extends Phaser.Scene {
   private orTapText!: Phaser.GameObjects.Text
   private audio!: AudioManager
   private paytable!: PaytablePanel
-  // Fix #2: Demo mode player wandering — free space random wandering like enemies, visual only (no health loss / no Game Over)
+  // Demo player wanders the arena. Visual only: no damage, no Game Over.
   private tankLabels: Phaser.GameObjects.Text[] = []
   private multTags: Phaser.GameObjects.Text[] = []
   private playerTargetX = 160
   private playerTargetY = 200
   private playerSpeed = 0.85
-  // Demo flag — ensures no real gameplay effects (health, Game Over) in Title
+  // Demo flag: no gameplay effects in Title.
   public isDemo = true
-  public isGameOver = false // for bot tryFire compatibility — demo never Game Over
+  // Present for bot fire compatibility.
+  public isGameOver = false
 
   constructor() {
     super('Title')
@@ -42,7 +43,7 @@ export class Title extends Phaser.Scene {
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
     bg.setAlpha(0.95)
-    // Procedural sparse starfield — the plus-cross tile read as static noise
+    // Sparse procedural starfield.
     for (let i = 0; i < 40; i++) {
       const x = (i * 73 + 17) % width
       const y = (i * 41 + 29) % (height - 30)
@@ -62,22 +63,18 @@ export class Title extends Phaser.Scene {
     }
     this.add.rectangle(width / 2, height - 30, width, 2, PALETTE.outline).setAlpha(0.6)
 
-    // Fix #2: Demo player starts near center-bottom but will wander free space randomly (like enemies)
+    // Demo player starts center-bottom and wanders.
     this.playerBase = this.add.image(160, height - 32, 'player_base')
     this.playerBase.setScale(0.9)
     this.playerTurret = this.add.image(160, height - 32, 'player_turret')
     this.playerTurret.setScale(0.9)
     this.playerTurret.setOrigin(0.5, 0.7)
-    // Demo wandering — random targets anywhere on free space (30,290 / 30,220), speed 0.7-1.0
+    // Wandering targets and speed.
     this.playerTargetX = Phaser.Math.Between(30, 290)
     this.playerTargetY = Phaser.Math.Between(80, 200)
     this.playerSpeed = Phaser.Math.FloatBetween(0.7, 1.0)
     this.pickNewPlayerTarget()
-    // Subtle idle bob removed in favor of wandering; keep tiny breathing if desired but wandering is primary
-    // Previously: tweens yoyo 300ms — replaced by free wandering to showcase shooting bots in demo
 
-    // (Stale parked-bunker row removed: bots wander free space now, and the
-    // three frozen bunkers read as tanks that never move.)
     const botClasses: any[] = [Scout, Bruiser, Warlord]
     const labels = [
       { name: 'SCOUT', mult: '×30' },
@@ -198,8 +195,7 @@ export class Title extends Phaser.Scene {
       const on = this.audio.toggleMusic()
       musicToggle.setAlpha(on ? 1 : 0.35)
     })
-    // NOTE: SFX toggle is N, not S — S is WASD-down in the Game scene and
-    // holding it would silently flip the SFX bus mid-fight.
+    // SFX toggle is N: S is WASD-down in the Game scene.
     this.input.keyboard?.on('keydown-N', () => {
       const on = this.audio.toggleSfx()
       sfxToggle.setAlpha(on ? 1 : 0.35)
@@ -292,22 +288,21 @@ export class Title extends Phaser.Scene {
   }
 
   private pickNewPlayerTarget() {
-    // Demo wandering — pick new random free space target every 1.4-2.2s (like enemies)
+    // Pick a new wander target every 1.4-2.2s.
     this.playerTargetX = Phaser.Math.Between(30, 290)
     this.playerTargetY = Phaser.Math.Between(30, 200)
     this.time.delayedCall(Phaser.Math.Between(1400, 2200), () => {
       if ((this as any)._starting) return
       if (!this.scene.isActive()) return
       if (!this.playerBase?.active) return
-      // isDemo guard — if demo were disabled, don't wander
+      // Do not wander outside demo mode.
       if (!this.isDemo) return
       this.pickNewPlayerTarget()
     })
   }
 
   update() {
-    // Fix #2: Demo player wandering — free space random wandering like enemies, but with demo logic (no health loss)
-    // Demo not real gameplay: bots' shells on Title do not cause damage/Game Over; player just visually shoots bots
+    // Demo wandering. Title shells cause no damage.
     if (this.isDemo && this.playerBase?.active) {
       const pAngle = Phaser.Math.Angle.Between(this.playerBase.x, this.playerBase.y, this.playerTargetX, this.playerTargetY)
       const pDist = Phaser.Math.Distance.Between(this.playerBase.x, this.playerBase.y, this.playerTargetX, this.playerTargetY)
@@ -320,16 +315,16 @@ export class Title extends Phaser.Scene {
         this.playerTurret.x = this.playerBase.x
         this.playerTurret.y = this.playerBase.y
       }
-      // Clamp player inside free space
+      // Clamp the player inside the arena.
       const { width: pw, height: ph } = this.scale as any
       this.playerBase.x = Phaser.Math.Clamp(this.playerBase.x, 24, pw - 24)
       this.playerBase.y = Phaser.Math.Clamp(this.playerBase.y, 30, ph - 40)
       this.playerTurret.x = this.playerBase.x
       this.playerTurret.y = this.playerBase.y
     }
-    // Each bot own code, random free space, barrel aims at you (demo bots still shoot visually but no damage)
+    // Bots update and aim at the player. Demo shells cause no damage.
     this.bots.forEach((bot: any) => bot.update(this, this.playerBase.x, this.playerBase.y))
-    // Name + multiplier tags follow their bots (else they go stale at spawn spots)
+    // Tags follow their bots.
     this.tankLabels.forEach((tag, i) => {
       const b: any = this.bots[i]
       if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y - 14))
@@ -338,7 +333,7 @@ export class Title extends Phaser.Scene {
       const b: any = this.bots[i]
       if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
     })
-    // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap
+    // Bot-vs-bot separation from live sprite size.
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
@@ -361,8 +356,7 @@ export class Title extends Phaser.Scene {
         }
       }
     }
-    // Player collision — per-bot radius from live sprite size, eased separation,
-    // fallback direction on exact overlap, solid through death fade.
+    // Player collision from live sprite size.
     for (const bot of this.bots as any[]) {
       if (!(bot as any).base?.active) continue
       const radius = ((bot as any).base.displayWidth + this.playerBase.displayWidth) / 2
@@ -379,7 +373,7 @@ export class Title extends Phaser.Scene {
         ;(bot as any).turret.y = (bot as any).base.y
       }
     }
-    // Keep bots clamped
+    // Clamp bots inside the arena.
     const { width, height } = this.scale as any
     for (const bot of this.bots as any[]) {
       ;(bot as any).base.x = Phaser.Math.Clamp((bot as any).base.x, 24, width - 24)
@@ -387,7 +381,7 @@ export class Title extends Phaser.Scene {
       ;(bot as any).turret.x = (bot as any).base.x
       ;(bot as any).turret.y = (bot as any).base.y
     }
-    // Player barrel auto-detects closest bot (no mouse needed, casino auto-aim)
+    // Player barrel tracks the closest bot.
     let closest: any = null
     let cDist = Infinity
     this.bots.forEach((b: any) => {
@@ -407,7 +401,7 @@ export class Title extends Phaser.Scene {
     const bot: any = this.bots[idx]
     if (!bot) return
     const target = { x: bot.turret.x, y: bot.turret.y }
-    // shoot from barrel tip, not center
+    // Fire from the barrel tip.
     const tip = this.getPlayerBarrelTip()
 
     this.audio.playSfx('sfx_fire', { volume: 0.25 })

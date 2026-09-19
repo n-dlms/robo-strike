@@ -60,15 +60,15 @@ export class AudioManager {
       this.attachMusic(key)
       return
     }
-    // Lazy path — music_loop deferred out of Boot preload for the ≤1.2MB wire
-    // budget; fetches in the background while the title screen plays SFX.
+    // Lazy path: music_loop is deferred out of Boot preload to protect the
+    // 1.2MB wire budget. It fetches in the background while the title plays.
     if (this.scene.cache.json.exists('__music_loading_' + key)) {
-      // Another scene is fetching it — retry so this scene attaches to the
+      // Another scene is fetching it: retry so this scene attaches to the
       // shared instance instead of missing out entirely.
       if (attempt < 12) {
         this.scene.time.delayedCall(400, () => this.initMusic(key, attempt + 1))
       } else {
-        // Stale flag (loader scene died mid-fetch) — take over the load.
+        // Stale flag (loader scene died mid-fetch): take over the load.
         this.scene.cache.json.remove('__music_loading_' + key)
         this.initMusic(key, 0)
       }
@@ -87,7 +87,7 @@ export class AudioManager {
     if (!this.scene.cache.audio.exists(key)) return
     // Singleton across scenes: Phaser's SoundManager is global, so a loop
     // started in Title survives into Game (and across RETRY restarts).
-    // Re-adding would stack a second loop of the same track — the audible clash.
+    // Re-adding would stack a second loop of the same track.
     const existing = this.scene.sound.getAll(key)[0] as any
     if (existing) {
       this.music = existing
@@ -109,12 +109,11 @@ export class AudioManager {
   playSfx(key: string, config?: Phaser.Types.Sound.SoundConfig) {
     if (!this.sfxEnabled) return
     if (!this.scene.cache.audio.exists(key)) return
-    // Clone per play to allow overlap (Phaser handles new instances)
     this.scene.sound.play(key, { volume: config?.volume ?? 0.7, ...config })
   }
 
   // Ducks music under SFX. Idempotent: re-fires while already ducked only
-  // extend the window instead of re-dipping, so rapid FIRE can't pump the bed.
+  // extend the window instead of re-dipping, so rapid fire cannot pump the bed.
   private duckedUntil = 0
   duckMusic(depth = 0.25, ms = 300) {
     if (!this.music || !this.musicEnabled) return
@@ -123,7 +122,7 @@ export class AudioManager {
     const now = this.scene.time.now
     try {
       if (now < this.duckedUntil) {
-        // Already ducked — just stretch the window, don't re-dip.
+        // Already ducked: stretch the window, do not re-dip.
         this.duckedUntil = now + ms
         return
       }

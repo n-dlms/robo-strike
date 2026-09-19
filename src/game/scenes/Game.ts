@@ -17,18 +17,18 @@ const BET_LADDER = ['0.1', '0.5', '1', '5', '10', '25', '50', '100']
 
 export class Game extends Phaser.Scene {
   private audio!: AudioManager
-  // exposed for bot fire-back via (scene as any).playerBase — keep public-ish
+  // Public for bot fire-back access via the scene.
   public playerBase!: Phaser.GameObjects.Image
   public playerTurret!: Phaser.GameObjects.Image
   private bots: Bot[] = []
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key }
 
-  // bet-scaled health mock (read from scene in real integration with HostSnapshot)
+  // Bet-scaled health values.
   private betAmount = 10
   private maxBet = 100
 
-  // Player health — mock maxHits 5, bar 40x4 (larger than bots 24x3), visible during gameplay
+  // Player health: 5 hits, 40x4 bar.
   private playerMaxHits = 5
   private playerHits = 5
   public isGameOver = false
@@ -38,14 +38,14 @@ export class Game extends Phaser.Scene {
   private playerHealthLabel?: Phaser.GameObjects.Text
   private gainsHudText?: Phaser.GameObjects.Text
 
-  // Fire-spam fix: shared global cooldown + i-frames
+  // Shared enemy fire cooldown and player i-frames.
   private nextEnemyFireTime = 0
   private readonly globalEnemyFireCooldown = 700
   private playerInvulnerableUntil = 0
   private readonly playerIFramesMs = 800
   private playerBlinkTween?: Phaser.Tweens.Tween
 
-  // Single reusable center banner — one slot, never stacked (see showBanner)
+  // Single reusable center banner (see showBanner).
   private bannerText?: Phaser.GameObjects.Text
   // Game Over UI refs
   private gameOverContainer?: Phaser.GameObjects.Container
@@ -54,7 +54,7 @@ export class Game extends Phaser.Scene {
   private countUp?: CountUp
   private gameOverShown = false
 
-  // ---- Casino layer (Phase 3-3) ----
+  // Casino layer.
   private casino!: CasinoSession
   private betIdx = 2
   private selectedTank: TankId = 0
@@ -76,8 +76,9 @@ export class Game extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
-    // Fix #4: cleanup stale bots from previous run (scene.restart retains this.bots array but destroys display list)
-    // Without clearing, bots accumulate and nextFireTime may be in the past, causing enemies to never shoot after RETRY
+    // Clear stale bots from a previous run: scene.restart keeps this.bots
+    // but destroys the display list. Without this, bots accumulate and stale
+    // fire timers stop enemies shooting after RETRY.
     if (this.bots && this.bots.length > 0) {
       this.bots.forEach((b: any) => {
         try { b.destroy?.() } catch {}
@@ -86,12 +87,12 @@ export class Game extends Phaser.Scene {
     this.bots = []
     this.tankLabels = []
     this.multTags = []
-    // Fix #3/#4: fully reset Game Over flags and timers before any bot logic can run
+    // Reset Game Over flags and timers before any bot logic runs.
     this.isGameOver = false
     this.gameOverShown = false
     this.audio = new AudioManager(this)
     this.audio.initMusic()
-    // Casino layer — host bridge if framed, standalone crypto-RNG demo otherwise
+    // Casino layer, host bridge if framed, standalone crypto-RNG demo otherwise
     this.casino = new CasinoSession()
     this.casino.init()
     this.roundInFlight = false
@@ -108,7 +109,7 @@ export class Game extends Phaser.Scene {
     this.playerInvulnerableUntil = 0
     this.playerBlinkTween?.stop()
     this.playerBlinkTween = undefined
-    // Ensure any leftover health bar refs from destroyed scene are cleared — will be recreated below
+    // Leftover health bar refs are cleared here and recreated below.
     this.playerHealthBarBg = undefined as any
     this.playerHealthBarFill = undefined as any
     this.playerHealthLabel = undefined as any
@@ -117,8 +118,7 @@ export class Game extends Phaser.Scene {
 
     const bg = this.add.image(width / 2, height / 2, 'bg_battlefield')
     bg.setDisplaySize(width, height)
-    // Procedural sparse stars (1px, palette white) — replaces the plus-cross
-    // tile that read as static noise
+    // Sparse procedural starfield (1px, palette white).
     for (let i = 0; i < 42; i++) {
       const x = (i * 97 + 31) % width
       const y = (i * 53 + 11) % (height - 40)
@@ -147,7 +147,7 @@ export class Game extends Phaser.Scene {
     this.playerBase.setDepth(2)
     this.playerTurret.setDepth(3)
 
-    // Player health bar — 40x4 larger than bots 24x3, near player + HUD mirror
+    // Player health bar next to the player.
     this.createPlayerHealthBar()
 
     this.cursors = this.input.keyboard!.createCursorKeys()
@@ -159,14 +159,14 @@ export class Game extends Phaser.Scene {
     }
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.isGameOver) {
-        // In Game Over, pointerdown is handled by popup — ignore move
+        // Game Over: the popup owns input, ignore moves.
         return
       }
       this.moveTween?.stop()
       this.moveTween = this.tweens.add({ targets: [this.playerBase, this.playerTurret], x: Phaser.Math.Clamp(p.x, 24, width - 24), y: Phaser.Math.Clamp(p.y, 40, height - 40), duration: 220, ease: 'Quad.easeOut' })
     })
 
-    // Each bot own code — random free space
+    // One entity instance per bot.
     const positions = [
       { x: 80, y: 60 },
       { x: 160, y: 60 },
@@ -215,8 +215,7 @@ export class Game extends Phaser.Scene {
     })
     this.refreshTankLabels()
 
-    // Fire-spam fix: stagger initial fire timers so all 3 don't burst at t=0
-    // Scout 1800 / Bruiser 2400 / Warlord 3000 already, but enforce round-robin offset on top
+    // Stagger initial fire timers so the bots do not all fire at t=0.
     {
       const now = this.time.now
       this.bots.forEach((b: any, idx: number) => {
@@ -226,7 +225,7 @@ export class Game extends Phaser.Scene {
       this.nextEnemyFireTime = now + 900 // grace at round start
     }
 
-    // ---- Casino HUD: BET −/+ , OVERDRIVE toggle, BANK, mode line ----
+    // Casino HUD: bet stepper, Overdrive toggle, bank.
     const hudStyle = (size: string, color: string) => ({
       fontFamily: '"VT323"',
       fontSize: size,
@@ -281,7 +280,7 @@ export class Game extends Phaser.Scene {
       .setVisible(false)
     this.refreshCasinoHud()
 
-    // Gains HUD (visible during gameplay) — under the bet/OD row
+    // Gains HUD under the bet row.
     this.gainsHudText = this.add
       .text(16, 44, `GAINS x${this.totalGains.toFixed(2)}`, {
         fontFamily: '"VT323"',
@@ -333,8 +332,8 @@ export class Game extends Phaser.Scene {
       const on = this.audio.toggleMusic()
       gMusic.setAlpha(on ? 1 : 0.35)
     })
-    // NOTE: SFX toggle is N, not S — S is WASD-down and holding it mid-fight
-    // would silently flip the SFX bus (the "sfx gets disturbed" bug).
+    // SFX toggle is N: S is WASD-down, and holding it mid-fight
+    // would silently flip the SFX bus.
     this.input.keyboard?.on('keydown-N', () => {
       const on = this.audio.toggleSfx()
       gSfx.setAlpha(on ? 1 : 0.35)
@@ -389,8 +388,8 @@ export class Game extends Phaser.Scene {
     if (this.cursors.right.isDown || this.wasd.D.isDown) dx = speed
     if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed
     if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed
+    // Manual steering overrides click-to-move (tween and WASD would fight).
     if (dx !== 0 || dy !== 0) {
-      // Manual steering overrides click-to-move (else tween + WASD fight)
       this.moveTween?.stop()
       this.moveTween = undefined
       this.playerBase.x = Phaser.Math.Clamp(this.playerBase.x + dx, 24, width - 24)
@@ -411,9 +410,8 @@ export class Game extends Phaser.Scene {
       if (b?.base?.active) tag.setPosition(Math.round(b.base.x), Math.round(b.base.y + 20))
     })
 
-    // Bot-vs-bot: per-pair radius from live sprite size, eased, fallback on exact overlap.
-    // Dead bots (death fade → respawn window) are ghost — invisible wrecks must
-    // not shove live tanks around.
+    // Bot-vs-bot separation from live sprite size. Dead bots are ghosts
+    // and never push live tanks.
     for (let i = 0; i < this.bots.length; i++) {
       for (let j = i + 1; j < this.bots.length; j++) {
         const a: any = this.bots[i]
@@ -437,11 +435,8 @@ export class Game extends Phaser.Scene {
         }
       }
     }
-    // Player collision — enemies cannot pass through the player. Radius is per-bot
-    // from live sprite size; the FULL overlap is resolved every frame so a tank
-    // can never straddle the player across frames (pass-through feel). Dead bots
-    // (death fade → respawn window) are ghost: they're invisible wrecks.
-    // No bot movement this frame can outrun this push (bot speed ≤ ~1.1 px/frame).
+    // Player collision: enemies cannot pass through the player. The full
+    // overlap resolves every frame; dead bots are ghosts.
     for (const bot of this.bots as any[]) {
       if (!bot.base?.active || bot.alive === false) continue
       const radius = (bot.base.displayWidth + this.playerBase.displayWidth) / 2
@@ -462,20 +457,20 @@ export class Game extends Phaser.Scene {
         this.moveTween = undefined
       }
     }
-    // Keep bots inside free space — wander anywhere on free space
+    // Keep bots inside the arena.
     this.bots.forEach((b: any) => {
       b.base.x = Phaser.Math.Clamp(b.base.x, 24, width - 24)
       b.base.y = Phaser.Math.Clamp(b.base.y, 30, height - 40)
       b.turret.x = b.base.x; b.turret.y = b.base.y
     })
-    // Also clamp player-tracked turret after push (player stays immovable, but keep synced)
+    // Keep the player turret synced with the base.
     this.playerTurret.x = this.playerBase.x
     this.playerTurret.y = this.playerBase.y
-    // Keep player health bar following player (40x4, larger than bots 24x3)
+    // Keep the player health bar above the player.
     this.updatePlayerHealthBar()
 
-    // Player barrel tracks the SELECTED tank (1/2/3 or click) — picking is a real
-    // aim choice; falls back to nearest alive bot while the pick is dead/respawning.
+    // Player barrel tracks the selected tank, falling back to the nearest
+    // alive bot while the pick is dead or respawning.
     let closest: any = null
     const picked: any = this.bots[this.selectedTank]
     if (picked && picked.alive !== false && picked.base?.active) {
@@ -494,16 +489,13 @@ export class Game extends Phaser.Scene {
     }
   }
 
-  // ---- Player health bar (40x4, HUD + follow) ----
+  // Player health bar.
   private createPlayerHealthBar() {
     const x = this.playerBase.x
     const y = this.playerBase.y - 18
-    // Background 40x4 navy outline #1a1a1a, depth above player
     this.playerHealthBarBg = this.add.rectangle(x, y, 40, 4, 0x1a1a1a).setDepth(12).setOrigin(0.5)
     this.playerHealthBarBg.setStrokeStyle(1, 0x1a1a1a)
-    // Fill anchored left
     this.playerHealthBarFill = this.add.rectangle(x - 20, y, 40, 4, 0x58ff9b).setDepth(13).setOrigin(0, 0.5)
-    // Label "YOU" VT323 7px above bar
     this.playerHealthLabel = this.add
       .text(x, y - 8, 'YOU', {
         fontFamily: '"VT323"',
@@ -526,19 +518,16 @@ export class Game extends Phaser.Scene {
     this.playerHealthBarFill.setPosition(x - 20, y)
     if (this.playerHealthLabel) this.playerHealthLabel.setPosition(x, y - 8)
     const pct = this.isGameOver ? 0 : Math.max(0, this.playerHits / this.playerMaxHits)
-    // Phaser Rectangle width setter
     ;(this.playerHealthBarFill as any).width = 40 * pct
-    // Need to also update display via setSize? For Rectangle, width property controls display; we keep visible handling
     this.playerHealthBarFill.setVisible(pct > 0 && !this.isGameOver)
     this.playerHealthBarBg.setVisible(!this.isGameOver)
     if (this.playerHealthLabel) this.playerHealthLabel.setVisible(!this.isGameOver)
   }
 
-  // ---- Fire-spam fix: global fire gate & i-frames ----
+  // Enemy fire gate and i-frames.
   public canEnemyFire(now: number): boolean {
     if (this.isGameOver) return false
-    // Cosmetic pause while a VRF round resolves — return fire never interacts
-    // with the payout path (docs/research/movement_ai_casino.md Option 1).
+    // Return fire pauses while a VRF round resolves. It never affects the payout.
     if (this.roundInFlight) return false
     return now >= this.nextEnemyFireTime
   }
@@ -554,10 +543,9 @@ export class Game extends Phaser.Scene {
   private startPlayerIFramesVisual(): void {
     this.playerBlinkTween?.stop()
     this.playerBlinkTween = undefined
-    // reset alpha
     this.playerBase.setAlpha(1)
     this.playerTurret.setAlpha(1)
-    // blink 800ms: 4 on/off cycles (~100ms each half)
+    // Blink for 800ms.
     this.playerBlinkTween = this.tweens.add({
       targets: [this.playerBase, this.playerTurret],
       alpha: 0.35,
@@ -580,19 +568,17 @@ export class Game extends Phaser.Scene {
     this.playerTurret.setAlpha(1)
   }
 
-  /** Called by bot fire onComplete — every shell that reaches player counts as hit */
+  /** Every enemy shell that reaches the player counts as a hit. */
   public onEnemyShellHitPlayer(damage = 1) {
-    // Fix #3: guard ensures Game Over appears only once — multiple shells arriving same frame must not trigger twice
+    // Game Over triggers once even if several shells land on the same frame.
     if (this.isGameOver || this.gameOverShown) return
     if (this.gameOverContainer) return
     if (this.playerHits <= 0) return
     const now = this.time.now
-    // i-frames: absorb if still invulnerable
     if (now < this.playerInvulnerableUntil) return
-    // Re-check after i-frames — another shell may have triggered Game Over during this tick
+    // Re-check: another shell may have ended the game this tick.
     if (this.isGameOver || this.gameOverShown) return
     this.playerHits = Math.max(0, this.playerHits - damage)
-    // flash player white (only on actual damage)
     this.playerBase.setTint(0xffffff)
     this.playerTurret.setTint(0xffffff)
     this.time.delayedCall(60, () => {
@@ -601,7 +587,7 @@ export class Game extends Phaser.Scene {
     })
     this.updatePlayerHealthBar()
     this.updateGainsHud()
-    // i-frames window after a successful hit — 800ms (player can reposition)
+    // Grant i-frames after a hit.
     if (this.playerHits > 0) {
       this.playerInvulnerableUntil = now + this.playerIFramesMs
       this.startPlayerIFramesVisual()
@@ -751,7 +737,7 @@ export class Game extends Phaser.Scene {
     this.roundInFlight = true
     const wagerFinal = wager
 
-    // ---- Presentation: muzzle flash, recoil, shell down the barrel ----
+    // Presentation: muzzle flash, recoil, shell.
     const { width, height } = this.scale
     const tip = this.getPlayerBarrelTip()
     this.audio.playSfx('sfx_fire', { volume: 0.25 })
@@ -764,7 +750,7 @@ export class Game extends Phaser.Scene {
     flash.setDepth(14)
     this.time.delayedCall(80, () => flash.destroy())
 
-    // ---- Casino brain: VRF decides (host session or standalone crypto word) ----
+    // Casino brain: VRF decides via host session or standalone crypto word.
     const placePromise = this.casino
       .placeRound(wagerFinal, this.selectedTank, this.overdriveOn)
       .catch((err) => {
@@ -772,14 +758,13 @@ export class Game extends Phaser.Scene {
         return null
       })
 
-    // Free-flying shell: travels along the barrel and hits WHOEVER it touches —
-    // no target lock. VRF still picks the outcome/payout; the shell only chooses
-    // where the presentation lands (cosmetic, never gates payout).
+    // Free-flying shell: hits whoever it touches, no target lock. VRF picks
+    // the outcome; the shell only stages the presentation.
     const shell = this.add.image(tip.x, tip.y, 'shell')
     shell.setScale(0.6)
     shell.setDepth(11)
     const shellAng = this.playerTurret.rotation - Math.PI / 2
-    const shellSpeed = 0.55 // px per ms — matches the old ~280ms flight feel
+    const shellSpeed = 0.55 // px per ms
     let contact: { bot: any; idx: number; x: number; y: number } | null = null
     const stepEv = this.time.addEvent({
       delay: 16,
@@ -794,7 +779,7 @@ export class Game extends Phaser.Scene {
         t.setAlpha(0.55)
         t.setDepth(10)
         this.tweens.add({ targets: t, alpha: 0, scale: 0.12, duration: 160, onComplete: () => t.destroy() })
-        // Contact check against ALL bots — first hull the shell touches wins.
+        // Contact check against all bots.
         for (let i = 0; i < this.bots.length; i++) {
           const b: any = this.bots[i]
           if (!b.base?.active || b.alive === false) continue
@@ -811,7 +796,7 @@ export class Game extends Phaser.Scene {
           ? { x: contact.x, y: contact.y }
           : { x: Phaser.Math.Clamp(shell.x, 6, width - 6), y: Phaser.Math.Clamp(shell.y, 6, height - 6) }
         shell.destroy()
-        // Shell may arrive before settle (host tx ~seconds) — VRF suspense ticker
+        // The shell can arrive before settle: show the VRF ticker meanwhile.
         this.vrfTicker?.setText('VRF ...').setVisible(true).setAlpha(1)
         this.tweens.add({ targets: this.vrfTicker, alpha: 0.45, duration: 300, yoyo: true, repeat: -1 })
         placePromise.then((result) => {
@@ -822,8 +807,8 @@ export class Game extends Phaser.Scene {
             this.showBanner('ROUND FAILED', PALETTE_HEX.magenta, 900)
             return
           }
-          // No physical contact but VRF paid: land presentation on the nearest
-          // alive tank so kill/glance visuals never fire on empty ground.
+          // VRF paid but no contact: stage the presentation on the nearest
+          // alive tank so kill visuals never fire on empty ground.
           let bot = contact?.bot ?? null
           let idx = contact?.idx ?? -1
           if (!bot && result.outcome > 0) {
@@ -841,11 +826,11 @@ export class Game extends Phaser.Scene {
     })
   }
 
-  /** Map a settled VRF outcome to tank-town presentation. Movement/AI never gates payout. */
+  /** Stage a settled VRF outcome. Movement and AI never affect the payout. */
   private applyOutcome(result: RoundResult, x: number, y: number, target: any, hitIdx: number) {
     const dec = this.casino.decimals()
 
-    // ---- session stats + streak escalation (cosmetic only — VRF untouched) ----
+    // Session stats and streaks (cosmetic, VRF untouched).
     const mult = result.wager > 0n ? Number(result.payout) / Number(result.wager) : 0
     const prevStreak = this.stats.streak
     const rec = recordRound(this.stats, result.outcome, mult, OUTCOME_NAMES[result.outcome] || '')
@@ -857,7 +842,7 @@ export class Game extends Phaser.Scene {
         this.audio.playSfx('sfx_coin_tick', { volume: 0.5, rate: Math.min(1 + rec.state.streak * 0.06, 1.5) } as never)
       })
     } else if (result.outcome > 0 && prevStreak === 0) {
-      // nothing extra — base win ceremony already handles it
+      // Base win ceremony already covers it.
     }
     if (rec.newBest && rec.state.biggestMultX100 > 0 && result.outcome >= 2) {
       this.time.delayedCall(700, () => this.showBanner('NEW BEST!', PALETTE_HEX.yellow, 1400))
@@ -870,8 +855,7 @@ export class Game extends Phaser.Scene {
     }
 
     const payoutText = (txt: string, color: string) => {
-      // Float BELOW the tank (count-up ×N lives above at y-30) so the two
-      // never drift through each other.
+      // Float below the tank: the count-up lives above, so the two never overlap.
       const t = this.add
         .text(x, y + 22, txt, {
           fontFamily: '"VT323"',
@@ -886,7 +870,7 @@ export class Game extends Phaser.Scene {
       this.tweens.add({ targets: t, y: y + 32, alpha: 0, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() })
     }
 
-    // MISS — dust puff short of the hull, no contact
+    // MISS: dust puff, no contact.
     if (result.outcome === 0) {
       this.audio.playSfx('sfx_explosion_small', { volume: 0.3 })
       const dust = this.add.image(x + 10, y - 8, 'explosion_small_1')
@@ -897,7 +881,7 @@ export class Game extends Phaser.Scene {
       return
     }
 
-    // Overdrive branch — committed at openSession, revealed here.
+    // Overdrive branch: committed at openSession, revealed here.
     if (result.overdriveTaken && !result.overdriveWon) {
       this.audio.playSfx('sfx_miss', { volume: 0.6 })
       const bust = this.add.image(x, y, 'explosion_small_1')
@@ -921,11 +905,11 @@ export class Game extends Phaser.Scene {
     }
 
     if (killed) {
-      // Forced kill: presentation of the VRF tier — aim/movement never gates payout.
+      // Forced kill: presentation of the VRF tier.
       ;(target as any).hits = 1
       ;(target as any).hit(this)
       if (result.outcome === 4) {
-        // JACKPOT: lotto fanfare + coin fountain + flash
+        // Jackpot ceremony.
         this.audio.playSfx('sfx_jackpot', { volume: 0.9 })
         this.cameras.main.flash(200, 255, 217, 79)
         for (let c = 0; c < 12; c++) {
@@ -968,7 +952,7 @@ export class Game extends Phaser.Scene {
         this.time.delayedCall(760, () => this.respawnEnemy(hitIdx))
       }
     } else {
-      // GLANCE — grazed hull: flash + small explosion, tank survives
+      // GLANCE: flash and small explosion, tank survives.
       target.base.setTint(0xffffff)
       target.turret.setTint(0xffffff)
       this.time.delayedCall(90, () => {
@@ -981,8 +965,8 @@ export class Game extends Phaser.Scene {
       this.tweens.add({ targets: exp, scale: 1.5, alpha: 0, duration: 220, onComplete: () => exp.destroy() })
     }
 
-    // Payout ceremony: glance = instant float; ≥2× = tier-scaled count-up
-    // (docs/research/ui_feedback.md §5 durations via CountUp) + token amount.
+    // Payout ceremony: instant float for glance, tier-scaled count-up
+    // (CountUp) plus token amount for 2x and above.
     if (result.payout > 0n) {
       const amount = formatUnits(result.payout, dec)
       if (result.outcome >= 2) {
@@ -1004,7 +988,6 @@ export class Game extends Phaser.Scene {
         })
         payoutText(`+${amount}`, PALETTE_HEX.yellow)
         if (result.outcome === 4) {
-          // jackpot camera pulse
           this.cameras.main.zoomTo(1.06, 150, 'Sine.easeOut', true)
           this.time.delayedCall(320, () => this.cameras.main.zoomTo(1, 240, 'Sine.easeIn', true))
         }
@@ -1044,24 +1027,17 @@ export class Game extends Phaser.Scene {
     }
   }
 
-  // ---- Game Over ---- (Fix #3: guard isGameOver + gameOverShown ensures only once, even if multiple shells hit after death)
+  // Game Over (guarded to trigger once).
   private triggerGameOver() {
     if (this.gameOverShown || this.isGameOver) return
     if (this.gameOverContainer) return
-    // Set both flags synchronously BEFORE any delayedCall/popup to prevent race from multiple shells
+    // Set both flags synchronously to block races from multiple shells.
     this.isGameOver = true
     this.gameOverShown = true
-    // Hide player health bar
     this.updatePlayerHealthBar()
-    // Final big explosion at player
     this.playPlayerBigExplosion()
-    // sfx_explosion_big already in explosion, plus additional big explosion sound
-    // sfx_miss losing jingle will play in popup (1.4s OGA losegamemusic)
-    // Shake + flash for death
     this.cameras.main.shake(220, 0.016)
     this.cameras.main.flash(180, 20, 30, 80)
-    // Desaturate effect via tinted overlay + gray flash
-    // Dim 55% navy will be added in popup
     this.time.delayedCall(420, () => this.showGameOverPopup())
   }
 
@@ -1117,34 +1093,30 @@ export class Game extends Phaser.Scene {
       })
     }
     scene.tweens.add({ targets: [this.playerBase, this.playerTurret], alpha: 0, duration: 120 })
-    // Hide health bar elements fully
     this.playerHealthBarBg?.setVisible(false)
     this.playerHealthBarFill?.setVisible(false)
     this.playerHealthLabel?.setVisible(false)
   }
 
   private showGameOverPopup() {
-    // Fix #3: ensure popup is created only once — guard double trigger from multiple shells
+    // Create the popup once.
     if (this.gameOverContainer) return
     if (!this.isGameOver && !this.gameOverShown) return
     const { width, height } = this.scale
-    // Backdrop dim 55% navy #0a1a3f
     this.gameOverBackdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x0a1a3f, 0.55)
     this.gameOverBackdrop.setDepth(90)
     this.gameOverBackdrop.setAlpha(0)
     this.tweens.add({ targets: this.gameOverBackdrop, alpha: 0.55, duration: 180, ease: 'Cubic.easeOut' })
 
-    // Desaturate: add subtle gray overlay for 55% desaturation feel
+    // Subtle gray overlay.
     const desat = this.add.rectangle(width / 2, height / 2, width, height, 0xaaaaaa, 0.12)
     desat.setDepth(91)
     desat.setAlpha(0)
     this.tweens.add({ targets: desat, alpha: 0.12, duration: 180, ease: 'Cubic.easeOut' })
 
-    // Shake per spec — miss shake ±2px 150ms
     this.cameras.main.shake(150, 0.009)
 
-    // Play new Game Over jingle sfx_gameover (CC0 GAMEOVER.wav trimmed + loudnorm) — replaces sfx_miss losegamemusic
-    // Fallback chain: sfx_gameover -> sfx_gameover_new -> sfx_miss
+    // Game Over jingle with fallback chain.
     if (this.cache.audio.exists('sfx_gameover')) this.audio.playSfx('sfx_gameover', { volume: 0.75 })
     else if (this.cache.audio.exists('sfx_gameover_new')) this.audio.playSfx('sfx_gameover_new', { volume: 0.75 })
     else this.audio.playSfx('sfx_miss', { volume: 0.75 })
@@ -1162,11 +1134,9 @@ export class Game extends Phaser.Scene {
     g.lineStyle(1, 0x1a1a1a, 1)
     g.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 6)
     g.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 6)
-    // subtle inner highlight
     g.lineStyle(1, 0x4ff2e3, 0.18)
     g.strokeRoundedRect(-panelW / 2 + 1, -panelH / 2 + 1, panelW - 2, panelH - 2, 5)
 
-    // Title GAME OVER Press Start 2P
     const title = this.add.text(0, -panelH / 2 + 18, 'GAME OVER', {
       fontFamily: '"Press Start 2P"',
       fontSize: '11px',
@@ -1175,7 +1145,7 @@ export class Game extends Phaser.Scene {
       strokeThickness: 2,
     }).setOrigin(0.5)
 
-    // Gains display VT323 — initially x0.00 then count up to totalGains
+    // Gains display: counts up to the total.
     const gainsLabel = this.add.text(0, -2, 'x0.00', {
       fontFamily: '"VT323"',
       fontSize: '24px',
@@ -1186,7 +1156,6 @@ export class Game extends Phaser.Scene {
     gainsLabel.setResolution(2)
     this.gameOverGainsText = gainsLabel
 
-    // Sub label if no gains vs gains
     const subTextStr = this.totalGains > 0 ? `TOTAL GAINS` : `NO GAINS`
     const subLabel = this.add.text(0, 16, subTextStr, {
       fontFamily: '"VT323"',
@@ -1195,13 +1164,12 @@ export class Game extends Phaser.Scene {
     }).setOrigin(0.5)
     subLabel.setAlpha(0.85)
 
-    // RETRY button — gold bg, Press Start 2P
+    // RETRY button.
     const btnW = 84
     const btnH = 22
     const btnBg = this.add.rectangle(0, panelH / 2 - 20, btnW, btnH, 0xc0392b)
     btnBg.setStrokeStyle(1, 0x1a1a1a)
     btnBg.setDepth(1)
-    // inner gold highlight
     const btnInner = this.add.rectangle(0, panelH / 2 - 21, btnW - 4, 2, 0xffd94f, 0.55)
     btnInner.setDepth(2)
     const retryText = this.add.text(0, panelH / 2 - 20, 'RETRY', {
@@ -1225,12 +1193,11 @@ export class Game extends Phaser.Scene {
     this.gameOverBackdrop.on('pointerdown', () => this.handleRetry())
     retryHit.on('pointerdown', () => this.handleRetry())
 
-    // Keyboard RETRY
     this.input.keyboard?.once('keydown-SPACE', () => this.handleRetry())
     this.input.keyboard?.once('keydown-ENTER', () => this.handleRetry())
     this.input.keyboard?.once('keydown-R', () => this.handleRetry())
 
-    // Tween in: scale 0.82->1 + fade 180ms Cubic.easeOut (spec §4)
+    // Tween the popup in.
     this.tweens.add({
       targets: container,
       alpha: 1,
@@ -1238,7 +1205,7 @@ export class Game extends Phaser.Scene {
       duration: 180,
       ease: 'Cubic.easeOut',
       onComplete: () => {
-        // Start CountUp from 0x to gains with tick sounds if gains>0, else no win sound
+        // Count up to the total with ticks, or pop at zero.
         if (this.totalGains > 0) {
           this.audio.playSfx('sfx_win', { volume: 0.55 })
           this.countUp = new CountUp(this, gainsLabel)
@@ -1248,22 +1215,16 @@ export class Game extends Phaser.Scene {
           })
         } else {
           gainsLabel.setText('x0.00')
-          // still pop
           this.tweens.add({ targets: gainsLabel, scale: { from: 1, to: 1.12 }, duration: 70, ease: 'Back.easeOut', yoyo: true, onComplete: () => gainsLabel.setScale(1) })
         }
-        // pulse RETRY button
         this.tweens.add({ targets: [btnBg, retryText], y: panelH / 2 - 22, duration: 300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
       },
     })
 
-    // Also allow FIRE button global to fast-forward count or retry
-    // Override handleFire behavior via isGameOver flag — SPACE capture already above, but add pointerdown to fast-forward
+    // FIRE fast-forwards the count; it never auto-retries while counting.
     const fireOnce = () => {
       if (this.countUp?.isPlaying) {
         this.countUp.skipToEnd()
-      } else {
-        // do not auto-retry on first FIRE if counting — only after count done. But spec says FIRE/Space to restart after.
-        // We'll keep retry explicit — second press after count triggers retry via handleFire check.
       }
     }
     this.input.once('pointerdown', fireOnce)
@@ -1271,17 +1232,16 @@ export class Game extends Phaser.Scene {
   }
 
   private handleRetry() {
-    // Fix #3: guard RETRY to only once — prevent multiple scene.restart calls from rapid inputs
+    // Guard RETRY against rapid inputs.
     if (!this.isGameOver) return
     if ((this as any)._retrying) return
     ;(this as any)._retrying = true
-    // Fix #4: reset enemy shooting timers and Game Over flags BEFORE restart so next create starts clean
-    // Without this, stale nextFireTime (past) or lingering isGameOver=true can cause bots to not shoot after RETRY
+    // Reset fire timers and flags before restart so the next run starts clean.
     this.isGameOver = false
-    // keep gameOverShown true until create resets it, but prevent further triggers
+    // gameOverShown resets in create().
     this.countUp?.stop()
     this.audio.playSfx('sfx_ui_blip')
-    // Reset per-bot nextFireTime to future so enemies shoot endlessly after restart (until player dies again)
+    // Push per-bot fire timers into the future.
     const now = this.time.now
     this.nextEnemyFireTime = now + 900
     this.bots.forEach((b: any, idx: number) => {
@@ -1292,7 +1252,7 @@ export class Game extends Phaser.Scene {
     this.playerInvulnerableUntil = 0
     this.playerBlinkTween?.stop()
     this.playerBlinkTween = undefined
-    // Fade out then restart scene cleanly
+    // Fade out, then restart.
     if (this.gameOverContainer) {
       this.tweens.add({
         targets: [this.gameOverContainer, this.gameOverBackdrop],
@@ -1309,7 +1269,6 @@ export class Game extends Phaser.Scene {
       ;(this as any)._retrying = false
       this.scene.restart()
     }
-    // Also restart via fade
     this.cameras.main.fadeOut(180, 0, 0, 0)
   }
 }

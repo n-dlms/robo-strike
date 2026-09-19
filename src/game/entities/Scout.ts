@@ -7,7 +7,7 @@ export class Scout {
   targetY: number
   private speed: number
 
-  // Health — bet-scaled, cosmetic for now
+  // Bet-scaled health.
   readonly baseHP = 2
   readonly barColor = 0x4ff2e3
   readonly tintColor = 0x4ff2e3
@@ -18,7 +18,7 @@ export class Scout {
   private healthBarFill?: Phaser.GameObjects.Rectangle
   private healthBarBorder?: Phaser.GameObjects.Rectangle
 
-  // Firing — slowed for playability (was 800)
+  // Fire cadence.
   readonly baseScale = 1
   readonly fireInterval = 1800
   private nextFireTime = 0
@@ -36,7 +36,6 @@ export class Scout {
     this.targetY = Phaser.Math.Between(30, 200)
     this.pickNewTarget(scene)
 
-    // bet-scaled health
     const wagerFactor = 1 + (betAmount / maxBet) * 1.5
     this.maxHits = Math.ceil(wagerFactor * this.baseHP)
     this.hits = this.maxHits
@@ -48,9 +47,9 @@ export class Scout {
   private pickNewTarget(scene: Phaser.Scene) {
     this.targetX = Phaser.Math.Between(30, 290)
     this.targetY = Phaser.Math.Between(30, 200)
-    // Scout picks new target often (every 1.2-1.8s)
+    // Scout retargets often (every 1.2-1.8s).
     scene.time.delayedCall(Phaser.Math.Between(1200, 1800), () => {
-      // guard if scene destroyed
+      // Skip if the scene is gone.
       if (!(scene.scene.isActive())) return
       if (!this.base.active) return
       this.pickNewTarget(scene)
@@ -60,10 +59,9 @@ export class Scout {
   private createHealthBar(scene: Phaser.Scene) {
     const x = this.base.x
     const y = this.base.y - 16
-    // 24x3 bg #1a1a1a + 1px outline handled via bg itself; add border rect for crisp 1px
+    // 24x3 bar with 1px outline.
     this.healthBarBg = scene.add.rectangle(x, y, 24, 3, 0x1a1a1a).setDepth(12).setOrigin(0.5)
     this.healthBarBg.setStrokeStyle(1, 0x1a1a1a)
-    // fill anchored left, same height
     this.healthBarFill = scene.add.rectangle(x - 12, y, 24, 3, this.barColor).setDepth(13).setOrigin(0, 0.5)
   }
 
@@ -75,25 +73,22 @@ export class Scout {
     this.healthBarFill.setPosition(x - 12, y)
     const pct = this.alive ? Math.max(0, this.hits / this.maxHits) : 0
     this.healthBarFill.width = 24 * pct
-    // Phaser Rectangle: need to update display width via setSize for visual; width setter also updates size
-    // Ensure visible
     this.healthBarFill.setVisible(pct > 0 && this.alive)
     this.healthBarBg.setVisible(this.alive)
-    // hide when dead already handled in hit
   }
 
   getBarrelTip(): { x: number; y: number } {
     const rot = this.turret.rotation
-    // barrel length 12px from turret pivot
+    // 12px barrel from the turret pivot.
     const lx = Math.cos(rot - Math.PI / 2) * 12
     const ly = Math.sin(rot - Math.PI / 2) * 12
     return { x: this.turret.x + lx, y: this.turret.y + ly }
   }
 
   update(scene: Phaser.Scene, playerX: number, playerY: number) {
-    // Dead bots are a fading wreck — no wandering, no aiming, no pushing
+    // Dead bots do not move, aim, or push.
     if (!this.alive) return
-    // Move toward target anywhere on free space
+    // Move toward the target.
     const angle = Phaser.Math.Angle.Between(this.base.x, this.base.y, this.targetX, this.targetY)
     const dist = Phaser.Math.Distance.Between(this.base.x, this.base.y, this.targetX, this.targetY)
     if (dist < 4) {
@@ -105,7 +100,7 @@ export class Scout {
       this.turret.x = this.base.x
       this.turret.y = this.base.y
     }
-    // Aim at player without hesitation (fast)
+    // Track the player.
     const turretAngle = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY)
     this.turret.rotation = Phaser.Math.Angle.RotateTo(this.turret.rotation, turretAngle + Math.PI / 2, 0.24)
 
@@ -120,24 +115,24 @@ export class Scout {
     if (gameAny.isGameOver) return
     const now = scene.time.now
     if (now < this.nextFireTime) return
-    // Global cooldown / round-robin guard — only one bot may wind up at a time
+    // Global guard: one bot winds up at a time.
     if (typeof gameAny.canEnemyFire === 'function' && !gameAny.canEnemyFire(now)) return
-    // Aim alignment guard — must be roughly facing player
+    // Fire only when roughly facing the player.
     const desired = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY) + Math.PI / 2
     const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
     if (Math.abs(diff) > 0.45) return
-    // Range guard — allow firing at any distance so shell can reach border; only reject point-blank
+    // Reject point-blank shots only.
     const dist = Phaser.Math.Distance.Between(this.turret.x, this.turret.y, playerX, playerY)
     if (dist < 18) return
 
-    // Claim global slot immediately so other bots stagger
+    // Claim the global slot so other bots stagger.
     if (typeof gameAny.notifyEnemyFired === 'function') gameAny.notifyEnemyFired(now)
-    // Schedule next attempt (jitter widened for less sync)
+    // Schedule the next attempt with jitter.
     const jitter = Phaser.Math.Between(-220, 220)
     this.nextFireTime = now + this.fireInterval + jitter
     this.isWindingUp = true
 
-    // Telegraph — 280ms windup: flash + tiny scale pulse + charge dot
+    // Telegraph: 280ms windup.
     this.base.setTint(0xffffff)
     this.turret.setTint(0xffffff)
     scene.tweens.add({ targets: [this.base, this.turret], scale: this.baseScale * 0.92, duration: 110, yoyo: true, ease: 'Quad.easeOut' })
@@ -169,7 +164,7 @@ export class Scout {
       }
       this.base.clearTint(); this.turret.clearTint()
       this.base.setTint(this.tintColor); this.turret.setTint(this.tintColor)
-      // Re-check alive after windup before firing
+      // Re-check before firing.
       this.fire(scene, playerX, playerY)
     })
   }
@@ -183,7 +178,6 @@ export class Scout {
     const flash = scene.add.image(tip.x, tip.y, 'muzzle_1')
     flash.setScale(0.5)
     flash.setDepth(14)
-    // orient flash along barrel
     flash.setRotation(this.turret.rotation)
     scene.time.delayedCall(70, () => flash.destroy())
 
@@ -191,11 +185,11 @@ export class Scout {
     shell.setScale(0.55)
     shell.setDepth(12)
 
-    // Capture predicted impact point (player pos at fire moment)
+    // Predicted impact point.
     const destX = playerX
     const destY = playerY
 
-    // Compute extended border target: ray from tip through player to screen edge (so miss shells reach border)
+    // Extended border target: ray from tip through player to screen edge.
     const w = (scene.scale as any)?.width ?? 320
     const h = (scene.scale as any)?.height ?? 240
     const dx = destX - tip.x
@@ -236,7 +230,7 @@ export class Scout {
       }
     }
 
-    // trail — cosmetic, not VRF
+    // Shell trail.
     const trailEv = scene.time.addEvent({
       delay: 16,
       loop: true,
@@ -260,8 +254,7 @@ export class Scout {
     })
 
     const baseDuration = 360
-    // First leg: tip -> predicted player pos. Bullets only stop on hit; on miss they continue to border edge.
-    // Shell is not destroyed early — it persists until final destination (player or border).
+    // First leg: tip to predicted player pos. Misses continue to the border.
     scene.tweens.add({
       targets: shell,
       x: destX,
@@ -271,8 +264,7 @@ export class Scout {
       onComplete: () => {
         const gameAny: any = scene as any
         const now = scene.time.now
-        // Invulnerability check — if player i-framed, show shield puff at player, shell stops (blocked hit, no damage)
-        // This is a valid stop at player (shield block), not an early destroy to border.
+        // I-framed player: shield puff, no damage.
         if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(now) && !gameAny.isGameOver && !gameAny.gameOverShown) {
           shell.destroy()
           trailEv.remove()
@@ -284,16 +276,13 @@ export class Scout {
           scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
           return
         }
-        // If Game Over already triggered, do NOT destroy early at predicted pos — continue visually to border
-        // This ensures shells in flight finish their trajectory to 0,width,0,height edge instead of vanishing
+        // Game Over: shells finish their flight to the border.
         if (gameAny.isGameOver || gameAny.gameOverShown) {
-          // No damage — just continue to border for visual continuity
           const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
           const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
           const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
           let extraDuration = speed > 0 ? Math.round(remaining / speed) : 240
           extraDuration = Phaser.Math.Clamp(extraDuration, 80, 700)
-          // Ensure shell persists — not destroyed early — until border reached
           scene.tweens.add({
             targets: shell,
             x: borderX,
@@ -314,18 +303,16 @@ export class Scout {
           })
           return
         }
-        // Proximity / dodge check — if player has moved far from predicted impact, it's a miss: continue to border edge
+        // Dodge check: player moved clear, continue to the border.
         const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
           if (actualDist > 38) {
-            // Miss — shell continues to border edge (raycast to 0,width,0,height) with proper duration, not disappearing at dest
             const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
             const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
             const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
             let extraDuration = speed > 0 ? Math.round(remaining / speed) : 240
             extraDuration = Phaser.Math.Clamp(extraDuration, 80, 700)
-            // Shell not destroyed early — second leg to border
             scene.tweens.add({
               targets: shell,
               x: borderX,
@@ -347,7 +334,7 @@ export class Scout {
             return
           }
         }
-        // Hit — full effects at player, stop at player (only on hit)
+        // Hit: full effects at the player.
         shell.destroy()
         trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })
@@ -365,8 +352,7 @@ export class Scout {
           pt.setTint(0xffffff)
           scene.time.delayedCall(60, () => { if (pt.active) pt.clearTint() })
         }
-        // Notify scene that player was hit — every shell that reaches player counts, but i-frames & miss handle spam
-        // Guard ensures Game Over triggers only once
+        // Notify the scene. Guards in onEnemyShellHitPlayer keep Game Over to once.
         if (typeof gameAny.onEnemyShellHitPlayer === 'function' && !gameAny.isGameOver && !gameAny.gameOverShown) {
           gameAny.onEnemyShellHitPlayer(1)
         }
@@ -374,7 +360,7 @@ export class Scout {
     })
   }
 
-  /** Returns true if killed */
+  /** Returns true on kill. */
   hit(scene: Phaser.Scene): boolean {
     if (!this.alive) return false
     this.hits -= 1
@@ -423,7 +409,6 @@ export class Scout {
         if (frame > 6) { cycle.remove(); return }
         const k = `explosion_big_${frame}`
         if (scene.textures.exists(k)) exp.setTexture(k)
-        // grow slightly
         exp.setScale(scale + frame * 0.05)
       },
     })
@@ -474,7 +459,7 @@ export class Scout {
     this.nextFireTime = scene.time.now + this.fireInterval + Phaser.Math.Between(400, 800)
     this.targetX = Phaser.Math.Between(30, 290)
     this.targetY = Phaser.Math.Between(30, 200)
-    // fade in from small
+    // Fade in.
     this.base.setScale(0.3); this.turret.setScale(0.3)
     this.base.setAlpha(0); this.turret.setAlpha(0)
     scene.tweens.add({

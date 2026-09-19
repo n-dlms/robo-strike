@@ -1,16 +1,16 @@
 // ============================================================================
-// ROBO STRIKE — CASINO BRAIN (single source of truth)
+// ROBO STRIKE, CASINO BRAIN (single source of truth)
 // ----------------------------------------------------------------------------
 // Paytables + BigInt VRF threshold mapping. Shared by:
 //   - the game presentation (src/game/*)
 //   - the simulation gate (scripts/simulate-rtp.ts)
-//   - the on-chain mirror (contracts/RoboStrike.sol — same literals)
+//   - the on-chain mirror (contracts/RoboStrike.sol, same literals)
 //
 // RULES (docs/MATH.md):
 //   - Outcome path is BigInt-only: no floats, no Math.random, no Number(v).
 //   - T_i = floor(b_i * 2^256 / 100); outcome = first i where v < T_i.
 //   - T_last === 2^256 exactly (100 divides 100*2^256), full coverage [0, 2^256).
-//   - Multipliers are RATIONALS num/den — payout = wager * num / den (integer).
+//   - Multipliers are RATIONALS num/den, payout = wager * num / den (integer).
 //   - RTP per tank = sum(interval/100 * mult) = 19/20 exactly (95%).
 // ============================================================================
 
@@ -38,8 +38,8 @@ export const MULT_RATIONAL: Record<TankId, readonly (readonly [bigint, bigint])[
 export const OUTCOME_NAMES = ['MISS', 'GLANCE', 'SOLID', 'CRIT', 'JACKPOT'] as const
 
 /**
- * Precomputed BigInt thresholds. Derived once at module init from BOUNDARIES —
- * the Appendix A literals below are asserted against this derivation in tests
+ * Precomputed BigInt thresholds. Derived once at module init from BOUNDARIES.
+ * The Appendix A literals below are asserted against this derivation in tests
  * (tests/paytables.test.ts) so literals and formula can never drift.
  */
 const derive = (boundaries: readonly number[]): bigint[] =>
@@ -51,7 +51,7 @@ export const THRESHOLDS: Record<TankId, bigint[]> = {
   2: derive(BOUNDARIES[2]),
 }
 
-/** Solidity mirror literals (docs/research/math.md Appendix A) for audit diff. */
+/** Solidity mirror literals (asserted equal in tests) for audit diff. */
 export const APPENDIX_A_THRESHOLDS: Record<TankId, bigint[]> = {
   0: [
     63685649080523907482964041754778349319298491566102310221701671204352221301964n,
@@ -84,7 +84,7 @@ export const OVERDRIVE_MIN_MULT_NUM = 2n
 
 /**
  * Map a raw VRF word to a paytable bucket index.
- * Pure BigInt comparison — linear scan over 5 thresholds (audit-friendly).
+ * Pure BigInt comparison, linear scan over 5 thresholds (audit-friendly).
  * T_last === 2^256 > any uint256 v, so the fallback is unreachable (defensive).
  */
 export function mapVrfToOutcome(v: bigint, tank: TankId): number {
@@ -121,11 +121,11 @@ export function qualifiesForOverdrive(tank: TankId, outcome: number): boolean {
 }
 
 // ---- ABI helpers for gameData/gameState (no viem dep) ----
-// gameData: 32-byte ABI word of a single uint8 — low bits tankId,
+// gameData: 32-byte ABI word of a single uint8, low bits tankId,
 // bit 0x80 = player pre-commits to Overdrive on qualifying wins (matches
 // contracts/RoboStrike.sol `_decodeTank`, byte 31 of the word).
 
-/** encodeAbiParameters([{type:'uint8'}],[raw]) equivalent — 32-byte word. */
+/** encodeAbiParameters([{type:'uint8'}],[raw]) equivalent, 32-byte word. */
 export function encodeTankId(tank: TankId, wantsOverdrive = false): `0x${string}` {
   if (tank < 0 || tank > 2) throw new Error(`tankId out of range: ${tank}`)
   const raw = wantsOverdrive ? tank | 0x80 : tank
@@ -177,7 +177,7 @@ export function decodeGameState(hex: string): RoboStrikeGameState | null {
   if (body.length < 64 * 5) return null
   const wordAt = (i: number) => BigInt('0x' + body.slice(i * 64, (i + 1) * 64))
   const randomness = wordAt(4)
-  if (randomness === 0n) return null // VRF not delivered yet — keep waiting
+  if (randomness === 0n) return null // VRF not delivered yet, keep waiting
   const tankId = Number(wordAt(0))
   return {
     tankId: (tankId === 1 ? 1 : tankId === 2 ? 2 : 0) as TankId,

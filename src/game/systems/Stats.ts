@@ -1,8 +1,7 @@
 // ============================================================================
-// Stats — persistent session stats (localStorage roboStrike_stats_v1).
-// Purely cosmetic presentation fuel for the Fun pillar: rounds, wins,
-// biggest win, and win streaks drive banners/audio escalation. NEVER feeds
-// the outcome path (VRF stays the sole authority — lint:rng + docs rules).
+// Stats: persistent session stats (localStorage roboStrike_stats_v1).
+// Presentation fuel for banners and audio escalation. Never feeds the
+// outcome path (VRF stays the sole authority).
 // ============================================================================
 export interface StatsState {
   rounds: number

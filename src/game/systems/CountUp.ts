@@ -1,9 +1,8 @@
 import Phaser from 'phaser'
 
 /**
- * CountUp — Phaser addCounter based tween from 0.00x to targetMult
- * Spec: docs/research/ui_feedback.md §5 — easeOutCubic for <6, Expo for >=6
- * Tick every adaptive step with sfx_coin_tick, final pop scale + blip.
+ * CountUp: tween from 0.00x to targetMult with coin ticks.
+ * easeOutCubic under 6x, Expo at 6x and above. Final pop scale + blip.
  */
 export type CountUpTier = 'glance' | 'solid' | 'crit' | 'jackpot'
 
@@ -23,7 +22,7 @@ export class CountUp {
     private label: Phaser.GameObjects.Text
   ) {}
 
-  /** Count from 0.00x to targetMult inclusive, ticking via audio callbacks */
+  /** Count from 0.00x to targetMult inclusive, ticking via audio callbacks. */
   start(
     targetMult: number,
     audio: { playTick(): void; playWin?(): void; playPop?(): void }
@@ -65,15 +64,13 @@ export class CountUp {
     })
   }
 
-  /** Fast-forward to final value on FIRE — preserve final display */
+  /** Fast-forward to the final value on FIRE. */
   skipToEnd() {
     if (!this.tween) return
     try {
-      // seek to end emits update, then complete fires onComplete once
       ;(this.tween as any).seek?.((this.tween as any).duration)
       this.tween.complete()
     } catch {
-      // fallback
       this.tween.stop()
     }
   }

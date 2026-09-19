@@ -1,8 +1,7 @@
 // ============================================================================
-// PaytablePanel — one-tap odds panel (key T / "ODDS" chip). Serves Simplicity
-// ("no manual needed") + the "recognizably a casino game" eligibility gate:
-// players and judges see the exact probabilities and multipliers per tank,
-// derived live from the single-source paytables (never hand-typed).
+// PaytablePanel: one-tap odds panel (key T / ODDS chip). Shows the exact
+// probabilities and multipliers per tank, derived live from the
+// single-source paytables (never hand-typed).
 // ============================================================================
 import Phaser from 'phaser'
 import { PALETTE, PALETTE_HEX } from '../../config/palette'
@@ -35,7 +34,7 @@ export class PaytablePanel {
     const c = this.scene.add.container(width / 2, height / 2).setDepth(80)
     this.container = c
 
-    // dim backdrop — click anywhere closes
+    // Dim backdrop: click anywhere closes.
     const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.55).setInteractive()
     backdrop.on('pointerdown', () => this.close())
     c.add(backdrop)
@@ -63,7 +62,7 @@ export class PaytablePanel {
       .setResolution(2)
     c.add(title)
 
-    // three tank columns, derived from the single-source paytable
+    // Three tank columns from the single-source paytable.
     const colW = 92
     const accents = [PALETTE_HEX.cyan, PALETTE_HEX.magenta, PALETTE_HEX.green]
     const multColors = [PALETTE_HEX.white, PALETTE_HEX.cyan, PALETTE_HEX.green, PALETTE_HEX.magenta, PALETTE_HEX.yellow]

@@ -78,7 +78,7 @@ export class Bruiser {
   }
 
   update(scene: Phaser.Scene, playerX: number, playerY: number) {
-    // Dead bots are a fading wreck — no wandering, no aiming, no pushing
+    // Dead bots do not move, aim, or push.
     if (!this.alive) return
     const angle = Phaser.Math.Angle.Between(this.base.x, this.base.y, this.targetX, this.targetY)
     const dist = Phaser.Math.Distance.Between(this.base.x, this.base.y, this.targetX, this.targetY)
@@ -106,7 +106,7 @@ export class Bruiser {
     const now = scene.time.now
     if (now < this.nextFireTime) return
     if (typeof gameAny.canEnemyFire === 'function' && !gameAny.canEnemyFire(now)) return
-    // Aim gate — Bruiser turret is slower, allow wider cone so it can still fire but with telegraph
+    // Wider cone for the slower Bruiser turret.
     const desired = Phaser.Math.Angle.Between(this.turret.x, this.turret.y, playerX, playerY) + Math.PI / 2
     const diff = Phaser.Math.Angle.Wrap(this.turret.rotation - desired)
     if (Math.abs(diff) > 0.55) return
@@ -220,8 +220,7 @@ export class Bruiser {
       },
     })
     const baseDuration = 420
-    // First leg: tip -> predicted player pos. Bullets only stop on hit; on miss they continue to border edge (raycast to 0,width,0,height).
-    // Shell is not destroyed early — persists until final destination.
+    // First leg: tip to predicted player pos. Misses continue to the border.
     scene.tweens.add({
       targets: shell,
       x: destX,
@@ -231,7 +230,7 @@ export class Bruiser {
       onComplete: () => {
         const gameAny: any = scene as any
         const now = scene.time.now
-        // Invulnerability: shield puff at player, stop at player (blocked hit)
+        // I-framed player: shield puff, no damage.
         if (typeof gameAny.isPlayerInvulnerable === 'function' && gameAny.isPlayerInvulnerable(now) && !gameAny.isGameOver && !gameAny.gameOverShown) {
           shell.destroy()
           trailEv.remove()
@@ -243,7 +242,7 @@ export class Bruiser {
           scene.tweens.add({ targets: puff, scale: 0.9, alpha: 0, duration: 180, onComplete: () => puff.destroy() })
           return
         }
-        // If Game Over already triggered, continue to border instead of vanishing early at dest
+        // Game Over: shells finish their flight to the border.
         if (gameAny.isGameOver || gameAny.gameOverShown) {
           const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
           const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
@@ -273,14 +272,13 @@ export class Bruiser {
         const pb = gameAny.playerBase as Phaser.GameObjects.Image | undefined
         if (pb && pb.active) {
           const actualDist = Phaser.Math.Distance.Between(destX, destY, pb.x, pb.y)
+          // Dodge check: player moved clear, continue to the border.
           if (actualDist > 38) {
-            // Miss — continue to border edge with proper duration, not disappearing at player
             const remaining = Phaser.Math.Distance.Between(destX, destY, borderX, borderY)
             const distToPlayer = Phaser.Math.Distance.Between(tip.x, tip.y, destX, destY)
             const speed = distToPlayer > 1 ? distToPlayer / baseDuration : 1
             let extraDuration = speed > 0 ? Math.round(remaining / speed) : 260
             extraDuration = Phaser.Math.Clamp(extraDuration, 80, 800)
-            // Shell not destroyed early — second leg to border
             scene.tweens.add({
               targets: shell,
               x: borderX,
@@ -302,7 +300,7 @@ export class Bruiser {
             return
           }
         }
-        // Hit — stop at player
+        // Hit: full effects at the player.
         shell.destroy()
         trailEv.remove()
         if (audio) audio.playSfx('sfx_explosion_small', { volume: 0.45 })

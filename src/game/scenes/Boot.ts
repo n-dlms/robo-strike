@@ -9,15 +9,14 @@ export class Boot extends Phaser.Scene {
   preload() {
     this.textures.get('__WHITE').setFilter(Phaser.Textures.FilterMode.NEAREST)
 
-    // Real CC0 art — not rectangles — now with separate base+turret for AI aiming
-    // Tanks — composite (legacy) + separate base/turret for AI
+    // Tank art with separate base and turret sprites for aiming.
     this.load.image('player_idle_1', 'assets/raw/player_idle_1.png')
     this.load.image('player_idle_2', 'assets/raw/player_idle_2.png')
     this.load.image('player_recoil_1', 'assets/raw/player_recoil_1.png')
     this.load.image('enemy1_idle_1', 'assets/raw/enemy1_idle_1.png')
     this.load.image('enemy2_idle_1', 'assets/raw/enemy2_idle_1.png')
     this.load.image('enemy3_idle_1', 'assets/raw/enemy3_idle_1.png')
-    // AI turrets — separate for aiming
+    // Separate turrets for aiming.
     this.load.image('player_base', 'assets/raw/player_base.png')
     this.load.image('player_turret', 'assets/raw/player_turret.png')
     this.load.image('enemy1_base', 'assets/raw/enemy1_base.png')
@@ -48,10 +47,10 @@ export class Boot extends Phaser.Scene {
     this.load.image('muzzle_2', 'assets/raw/muzzle_2.png')
     this.load.image('shell_trail_1', 'assets/raw/shell_trail_1.png')
     this.load.image('shell_trail_2', 'assets/raw/shell_trail_2.png')
-    // Arcade border for reference (HTML already shows, but also preload for in-canvas if needed)
+    // Arcade border reference.
     this.load.image('arcade_gui', 'assets/arcade/oga_arcade_gui_sheet.png')
 
-    // Audio — real CC0 SFX + action loop (Phase 1 UI sounds)
+    // Audio: CC0 SFX.
     this.load.audio('sfx_fire', ['assets/audio/sfx_fire.ogg', 'assets/audio/sfx_fire.wav'])
     this.load.audio('sfx_fire_scout', ['assets/audio/sfx_fire_scout.ogg', 'assets/audio/sfx_fire_scout.wav'])
     this.load.audio('sfx_fire_bruiser', ['assets/audio/sfx_fire_bruiser.ogg', 'assets/audio/sfx_fire_bruiser.wav'])
@@ -65,8 +64,8 @@ export class Boot extends Phaser.Scene {
     this.load.audio('sfx_gameover_new', ['assets/audio/sfx_gameover_new.ogg', 'assets/audio/sfx_gameover_new.wav'])
     this.load.audio('sfx_coin_tick', ['assets/audio/sfx_coin_tick.ogg', 'assets/audio/sfx_coin_tick.wav'])
     this.load.audio('sfx_ui_blip', ['assets/audio/sfx_ui_blip.ogg', 'assets/audio/sfx_ui_blip.wav'])
-    // music_loop is intentionally NOT preloaded — 644KB deferred to runtime
-    // (AudioManager.initMusic lazy-loads it after boot; keeps initial wire ≤1.2MB)
+    // music_loop is intentionally NOT preloaded: 644KB deferred to runtime
+    // (AudioManager.initMusic lazy-loads it after boot, keeping initial wire under 1.2MB).
 
     // Ensure all textures are NEAREST after load
     this.load.on('complete', () => {
