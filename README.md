@@ -22,9 +22,9 @@
 
 <div align="center">
 
-| ![Paytable](docs/screenshots/paytable.png) | ![Arena](docs/screenshots/game.png) |
+| ![Arena](docs/screenshots/game.png) | ![Paytable](docs/screenshots/paytable.png) |
 |:---:|:---:|
-| *In-game paytable: exact odds per tank* | *Live arena: WW2 armor, health bars, FIRE* |
+| *Live arena: WW2 armor, health bars, FIRE* | *In-game paytable: exact odds per tank* |
 
 </div>
 
