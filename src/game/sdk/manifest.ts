@@ -1,5 +1,5 @@
 // ============================================================================
-// Manifest validator — port of casino-sdk src/manifest.ts validateCasinoGameManifest
+// Manifest validator, port of casino-sdk src/manifest.ts validateCasinoGameManifest
 // rules (verbatim failure strings from CHAIN_WTF doc §5.1, cross-checked against
 // the coinflip example). No zod dependency; same acceptance/rejection decisions.
 // ============================================================================
@@ -51,7 +51,7 @@ export const validateCasinoGameManifest = (
     return { valid: false, reason: 'Manifest presentation is invalid.' }
   }
 
-  // capabilities — openSession must be literal true
+  // capabilities, openSession must be literal true
   const c = m.capabilities as Record<string, unknown> | undefined
   const capsOk =
     typeof c === 'object' &&
@@ -83,7 +83,7 @@ export const validateCasinoGameManifest = (
   }
 }
 
-/** canonicalCasinoGameId — verbatim port (host rejects gameId canonical mismatch). */
+/** canonicalCasinoGameId, verbatim port (host rejects gameId canonical mismatch). */
 export const canonicalCasinoGameId = (value: string | undefined | null): string => {
   if (!value) return ''
   let trimmed = value.trim()

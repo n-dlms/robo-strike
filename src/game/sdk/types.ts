@@ -1,5 +1,5 @@
 // ============================================================================
-// Vendored bridge types — faithful to casino-sdk src/types.ts (2026-09-01 zip,
+// Vendored bridge types, faithful to casino-sdk src/types.ts (2026-09-01 zip,
 // ETag ac54be4c). Trimmed to the surface ROBO STRIKE consumes; field names and
 // semantics are verbatim so snapshots from the simulator / production host
 // decode identically.
